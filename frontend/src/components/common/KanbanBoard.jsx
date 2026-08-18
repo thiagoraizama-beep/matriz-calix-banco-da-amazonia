@@ -26,18 +26,18 @@ function Column({ status, label, cor, items, renderCard, getId }) {
       style={{
         minWidth: 270, width: 270, flexShrink: 0, display: "flex", flexDirection: "column",
         background: isOver ? "var(--accent-soft)" : "var(--card-bg)",
-        borderRadius: 10, border: `1px solid ${isOver ? "var(--accent)" : "var(--border)"}`, maxHeight: "100%",
+        borderRadius: 10, border: `1px solid ${isOver ? "var(--accent)" : "var(--border)"}`, height: "100%",
         boxShadow: "0 1px 3px rgba(20,33,61,0.08)",
         transition: "background 0.15s ease, border-color 0.15s ease",
       }}
     >
-      <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: cor?.color || "var(--text-primary)" }}>{label || status}</span>
         <span style={{ fontSize: 11, color: "var(--text-secondary)", background: "var(--bg)", borderRadius: 999, padding: "1px 7px" }}>
           {items.length}
         </span>
       </div>
-      <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", flex: 1, background: "var(--bg)" }}>
+      <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", flex: 1, minHeight: 0, background: "var(--bg)" }}>
         {items.map((item) => (
           <DraggableCard key={getId(item)} id={getId(item)}>
             {renderCard(item)}
@@ -141,7 +141,7 @@ export default function KanbanBoard({ items, statusOptions, statusLabels, getId 
           onPointerMove={handlePointerMoveFundo}
           onPointerUp={handlePointerUpFundo}
           onPointerLeave={handlePointerUpFundo}
-          style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, maxHeight: "calc(100vh - 260px)", userSelect: "none" }}
+          style={{ display: "flex", gap: 12, overflowX: "auto", overflowY: "hidden", paddingBottom: 10, height: "calc(100vh - 260px)", userSelect: "none" }}
         >
           {statusOptions.map((status) => (
             <Column
