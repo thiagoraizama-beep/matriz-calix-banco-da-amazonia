@@ -9,6 +9,9 @@ import { useMatrixFilters } from "../useMatrixFilters.js";
 import { groupByStatus } from "../statusCounts.js";
 import Spinner from "../../common/Spinner.jsx";
 import useIsMobile from "../../../hooks/useIsMobile.js";
+import KanbanBoard from "../../common/KanbanBoard.jsx";
+import { STATUS_COLORS } from "../statusBadge.jsx";
+import { useMatrixFiltersContext } from "../../../context/MatrixFiltersContext.jsx";
 
 export default function ClientMatrixView({ campanhaId } = {}) {
   const [creatives, setCreatives] = useState(null);
@@ -19,6 +22,7 @@ export default function ClientMatrixView({ campanhaId } = {}) {
   const [selecionados, setSelecionados] = useState([]);
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
+  const { visualizacao } = useMatrixFiltersContext();
 
   useEffect(() => {
     const request = campanhaId ? getCreativesByCampanha(campanhaId) : getMatrixCreatives();
@@ -112,6 +116,32 @@ export default function ClientMatrixView({ campanhaId } = {}) {
 
   const modal = viewing && <CreativeFusedDetailModal creative={viewing} campanhaId={campanhaId} onClose={() => setViewing(null)} />;
 
+  // Cliente ve o Kanban mas nao pode arrastar (readOnly) -- mudar status e
+  // decisao da agencia/veiculo, nao do cliente. So mostra colunas de status
+  // que tem pelo menos um criativo, pra nao poluir a tela com colunas vazias
+  // (diferente do Kanban da agencia, que mostra todos os status possiveis).
+  const statusComCriativos = [...new Set(creatives.map((c) => c.status))];
+
+  const kanbanBoard = (
+    <KanbanBoard
+      items={filtered}
+      statusOptions={statusComCriativos}
+      statusColors={STATUS_COLORS}
+      readOnly
+      renderCard={(c) => (
+        <CreativeGridCard
+          creative={c}
+          onOpenDetail={setViewing}
+          canEdit={false}
+          performance={performanceMap[c.id]}
+          selectable={comparando}
+          selected={selecionados.includes(c.id)}
+          onToggleSelect={toggleSelect}
+        />
+      )}
+    />
+  );
+
   if (isMobile) {
     return (
       <div>
@@ -119,7 +149,7 @@ export default function ClientMatrixView({ campanhaId } = {}) {
         <h2 style={{ margin: "16px 0" }}>Relatório de Criativos</h2>
         {campanhaId && <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>{compareButton}{abrirComparativoButton}</div>}
         {statusGrid}
-        {grid}
+        {visualizacao === "kanban" ? kanbanBoard : grid}
         {modal}
       </div>
     );
@@ -129,7 +159,7 @@ export default function ClientMatrixView({ campanhaId } = {}) {
     <div>
       {campanhaId && <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>{compareButton}{abrirComparativoButton}</div>}
       {statusGrid}
-      {grid}
+      {visualizacao === "kanban" ? kanbanBoard : grid}
       {modal}
     </div>
   );

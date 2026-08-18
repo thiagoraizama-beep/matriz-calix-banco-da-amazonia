@@ -18,8 +18,8 @@ import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSe
 // onMoveCard: (item, novoStatus) -> Promise (resolve = aplica, rejeita = mantem)
 // statusColors: opcional, { [status]: { color, bg } } pro cabecalho da coluna
 
-function Column({ status, label, cor, items, renderCard, getId }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+function Column({ status, label, cor, items, renderCard, getId, readOnly }) {
+  const { setNodeRef, isOver } = useDroppable({ id: status, disabled: readOnly });
   return (
     <div
       ref={setNodeRef}
@@ -38,11 +38,15 @@ function Column({ status, label, cor, items, renderCard, getId }) {
         </span>
       </div>
       <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto", flex: 1, minHeight: 0, background: "var(--bg)" }}>
-        {items.map((item) => (
-          <DraggableCard key={getId(item)} id={getId(item)}>
-            {renderCard(item)}
-          </DraggableCard>
-        ))}
+        {items.map((item) =>
+          readOnly ? (
+            <div key={getId(item)}>{renderCard(item)}</div>
+          ) : (
+            <DraggableCard key={getId(item)} id={getId(item)}>
+              {renderCard(item)}
+            </DraggableCard>
+          )
+        )}
       </div>
     </div>
   );
@@ -72,7 +76,7 @@ function DraggableCard({ id, children }) {
   );
 }
 
-export default function KanbanBoard({ items, statusOptions, statusLabels, getId = (i) => i.id, renderCard, onMoveCard, statusColors, error, onErrorClear }) {
+export default function KanbanBoard({ items, statusOptions, statusLabels, getId = (i) => i.id, renderCard, onMoveCard, statusColors, error, onErrorClear, readOnly = false }) {
   const [movendo, setMovendo] = useState(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -114,6 +118,7 @@ export default function KanbanBoard({ items, statusOptions, statusLabels, getId 
   }
 
   function handleDragEnd(event) {
+    if (readOnly) return;
     const { active, over } = event;
     if (!over) return;
     const novoStatus = over.id;
@@ -152,6 +157,7 @@ export default function KanbanBoard({ items, statusOptions, statusLabels, getId 
               items={byStatus[status] || []}
               renderCard={renderCard}
               getId={getId}
+              readOnly={readOnly}
             />
           ))}
         </div>
