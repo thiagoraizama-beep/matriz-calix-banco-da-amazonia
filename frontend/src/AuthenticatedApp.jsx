@@ -82,7 +82,18 @@ export default function AuthenticatedApp() {
     }
   }, [activePage]);
 
+  // "A implementar" funciona como toggle: clicar de novo enquanto ja esta nela
+  // fecha a aba e volta para a pagina de onde o usuario veio (via historico do
+  // navegador), em vez de sempre reabrir/permanecer nela -- diferente das demais
+  // paginas de nivel superior, que sao navegacao normal (sempre vai para o destino).
+  // Se nao houver de onde voltar (ex: usuario abriu /a-implementar direto na URL,
+  // sem navegacao anterior dentro do app), cai no fallback de ir para a Matriz.
   function handleNavigate(page) {
+    if (page === PAGES.A_IMPLEMENTAR && activePage === PAGES.A_IMPLEMENTAR) {
+      if (window.history.length > 1) navigate(-1);
+      else navigate(PAGE_PATHS[PAGES.MATRIZ_CONTEUDO]);
+      return;
+    }
     navigate(PAGE_PATHS[page]);
   }
 

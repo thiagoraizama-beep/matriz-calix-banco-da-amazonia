@@ -62,6 +62,14 @@ function EditIcon() {
   );
 }
 
+function XIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
 export default function AgencyMatrixView({ campanhaId } = {}) {
   const [creatives, setCreatives] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -214,7 +222,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         color: comparando ? "#fff" : COR_COMPARAR,
       }}
     >
-      <CompareIcon /> {comparando ? `Cancelar seleção (${selecionados.length})` : "Selecionar para comparar"}
+      {comparando ? <XIcon /> : <CompareIcon />} {comparando ? `Cancelar seleção (${selecionados.length})` : "Selecionar para comparar"}
     </button>
   );
 
@@ -237,7 +245,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         color: editandoEmMassa ? "#fff" : COR_EDITAR_MASSA,
       }}
     >
-      <EditIcon /> {editandoEmMassa ? `Cancelar seleção (${selecionados.length})` : "Editar em massa"}
+      {editandoEmMassa ? <XIcon /> : <EditIcon />} {editandoEmMassa ? `Cancelar seleção (${selecionados.length})` : "Editar em massa"}
     </button>
   );
 
