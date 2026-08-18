@@ -2,6 +2,34 @@ import { query } from "../config/database.js";
 import { getCloudinaryClient } from "../config/cloudinary.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 import { scopeVeiculoFilter, scopeCampanhaFilter } from "../utils/scopeFilter.js";
+import { registrarAcao, registrarEdicaoCampos, resolveCampanhaIdDoCreative } from "./actionLogService.js";
+
+// Rotulos legiveis dos campos editaveis de um criativo, usados pelo log de
+// auditoria (registrarEdicaoCampos) para descrever "Campo: antes -> depois"
+// de forma legivel para quem revisa o historico. So os campos de conteudo do
+// anuncio entram aqui -- ids de armazenamento (cloudinary_public_id etc) e
+// timestamps internos ficam de fora de proposito.
+const LABELS_CAMPOS_CREATIVE = {
+  campanha: "Campanha",
+  veiculo: "Veículo",
+  plataforma: "Plataforma",
+  tiposCompra: "Tipo de compra",
+  campaignName: "Campaign Name",
+  conjunto: "Ad Group",
+  formato: "Formato",
+  periodoInicio: "Início do período",
+  periodoFim: "Fim do período",
+  urlDestino: "URL de destino",
+  impulsionado: "Tipo de publicação",
+  linkPostagem: "Link da postagem",
+  segmentacao: "Segmentação",
+  titulo: "Título",
+  posicionamento: "Posicionamento",
+  descricao: "Descrição",
+  observacoes: "Observações",
+  ehPerformance: "Performance",
+  orcamentoProjetado: "Orçamento projetado",
+};
 
 export const STATUSES = [
   "Não registrado",
@@ -297,7 +325,19 @@ export async function createCreative({
       ehPerformance ? (orcamentoProjetado || null) : null,
     ]
   );
-  return rows[0];
+  const creative = rows[0];
+
+  const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+  await registrarAcao({
+    entidadeTipo: "criativo",
+    entidadeId: creative.id,
+    entidadeNome: creative.nome,
+    campanhaId: campanhaIdLog,
+    acao: "criacao",
+    alteradoPor: criadoPor,
+  });
+
+  return creative;
 }
 
 export async function updateCreative(id, {
@@ -306,12 +346,13 @@ export async function updateCreative(id, {
   periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
   urlDestino, impulsionado, segmentacao, titulo, tiposCompra, campanhaVeiculoId,
   linkPostagem, ehPerformance, orcamentoProjetado,
-}) {
-  let midiaFields = { publicId: null, secureUrl: null, tipoMidia: null };
-  let creativeAntigo = null;
+}, alteradoPor = null) {
+  // Sempre busca o estado anterior (nao so quando ha arquivo novo) -- usado
+  // tanto para a limpeza de midia antiga quanto para o diff do log de auditoria.
+  const creativeAntigo = await getCreativeById(id);
 
+  let midiaFields = { publicId: null, secureUrl: null, tipoMidia: null };
   if (file) {
-    creativeAntigo = await getCreativeById(id);
     const upload = await uploadToCloudinary(file.buffer, file.mimetype, process.env.CLOUDINARY_CREATIVES_FOLDER);
     midiaFields = {
       publicId: upload.public_id,
@@ -373,12 +414,66 @@ export async function updateCreative(id, {
     });
   }
 
-  return rows[0] || null;
+  const creative = rows[0] || null;
+  if (creative && creativeAntigo) {
+    // camposDepois so inclui chaves que de fato vieram no patch (undefined =
+    // campo nao tocado nesta edicao, fica de fora do diff) -- registrarEdicaoCampos
+    // ja filtra por "in camposDepois", entao basta montar o objeto com os
+    // valores recebidos tal como chegaram na funcao.
+    const camposAntes = {
+      campanha: creativeAntigo.campanha, veiculo: creativeAntigo.veiculo, plataforma: creativeAntigo.plataforma,
+      tiposCompra: creativeAntigo.tipos_compra, campaignName: creativeAntigo.campaign_name, conjunto: creativeAntigo.conjunto,
+      formato: creativeAntigo.formato,
+      periodoInicio: creativeAntigo.periodo_inicio ? new Date(creativeAntigo.periodo_inicio).toISOString().slice(0, 10) : null,
+      periodoFim: creativeAntigo.periodo_fim ? new Date(creativeAntigo.periodo_fim).toISOString().slice(0, 10) : null,
+      urlDestino: creativeAntigo.url_destino,
+      impulsionado: creativeAntigo.impulsionado ? "Impulsionado" : "Dark Post", linkPostagem: creativeAntigo.link_postagem,
+      segmentacao: creativeAntigo.segmentacao, titulo: creativeAntigo.titulo, posicionamento: creativeAntigo.posicionamento,
+      descricao: creativeAntigo.descricao, observacoes: creativeAntigo.observacoes,
+      ehPerformance: creativeAntigo.eh_performance ? "Sim" : "Não", orcamentoProjetado: creativeAntigo.orcamento_projetado,
+    };
+    const camposDepois = {};
+    for (const [chave, valor] of Object.entries({
+      campanha, veiculo, plataforma, tiposCompra, campaignName, conjunto, formato, periodoInicio, periodoFim,
+      urlDestino, impulsionado: impulsionado !== undefined ? (impulsionado ? "Impulsionado" : "Dark Post") : undefined,
+      linkPostagem, segmentacao, titulo, posicionamento, descricao, observacoes,
+      ehPerformance: ehPerformance !== undefined ? ((ehPerformance === true || ehPerformance === "true") ? "Sim" : "Não") : undefined,
+      orcamentoProjetado,
+    })) {
+      if (valor !== undefined) camposDepois[chave] = valor;
+    }
+
+    const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+    await registrarEdicaoCampos({
+      entidadeTipo: "criativo",
+      entidadeId: creative.id,
+      entidadeNome: creative.nome,
+      campanhaId: campanhaIdLog,
+      camposAntes,
+      camposDepois,
+      alteradoPor,
+      labels: LABELS_CAMPOS_CREATIVE,
+    });
+  }
+
+  return creative;
 }
 
-export async function deleteCreative(id) {
+export async function deleteCreative(id, alteradoPor = null) {
   const creative = await getCreativeById(id);
   if (!creative) return false;
+
+  // Resolve e grava o log ANTES do DELETE -- precisa do creative ainda existir
+  // para achar a campanha dona dele (campanha_veiculo_id) e capturar o nome.
+  const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+  await registrarAcao({
+    entidadeTipo: "criativo",
+    entidadeId: creative.id,
+    entidadeNome: creative.nome,
+    campanhaId: campanhaIdLog,
+    acao: "exclusao",
+    alteradoPor,
+  });
 
   // Criativos "Impulsionado" podem nao ter arquivo (so link_postagem) -- nesse
   // caso cloudinary_public_id fica null, entao nao ha nada a apagar no Cloudinary.
@@ -396,12 +491,12 @@ export async function deleteCreative(id) {
 // reaproveitando deleteCreative (mesma limpeza de midia no Cloudinary) para cada
 // id. Ids invalidos sao pulados e reportados separadamente, sem interromper os
 // demais -- mesmo padrao de updateCreativesBulk.
-export async function deleteCreativesBulk(ids) {
+export async function deleteCreativesBulk(ids, alteradoPor = null) {
   const excluidos = [];
   const falharam = [];
   for (const id of ids) {
     try {
-      const ok = await deleteCreative(id);
+      const ok = await deleteCreative(id, alteradoPor);
       if (ok) excluidos.push(id);
       else falharam.push({ id, motivo: "Criativo não encontrado" });
     } catch (err) {
@@ -444,6 +539,19 @@ export async function updateStatus(id, novoStatus, user) {
     [id, creative.status, novoStatus, user.id]
   );
 
+  const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+  await registrarAcao({
+    entidadeTipo: "criativo",
+    entidadeId: creative.id,
+    entidadeNome: creative.nome,
+    campanhaId: campanhaIdLog,
+    acao: "status",
+    campo: "Status",
+    valorAnterior: creative.status,
+    valorNovo: novoStatus,
+    alteradoPor: user.id,
+  });
+
   return rows[0];
 }
 
@@ -481,7 +589,7 @@ export async function updateCreativesBulk(ids, patch, user) {
     try {
       let creative = null;
       if (status) creative = await updateStatus(id, status, user);
-      if (temCamposRestantes) creative = await updateCreative(id, patchValido);
+      if (temCamposRestantes) creative = await updateCreative(id, patchValido, user.id);
       if (creative) atualizados.push(creative);
       else falharam.push({ id, motivo: "Criativo não encontrado" });
     } catch (err) {
@@ -509,6 +617,20 @@ export async function updateStatusSistema(id, novoStatus) {
      VALUES ($1, $2, $3, NULL, 'automatico')`,
     [id, statusAnterior.status, novoStatus]
   );
+
+  const campanhaIdLog = await resolveCampanhaIdDoCreative(statusAnterior);
+  await registrarAcao({
+    entidadeTipo: "criativo",
+    entidadeId: statusAnterior.id,
+    entidadeNome: statusAnterior.nome,
+    campanhaId: campanhaIdLog,
+    acao: "status",
+    campo: "Status",
+    valorAnterior: statusAnterior.status,
+    valorNovo: novoStatus,
+    alteradoPor: null,
+    origem: "automatico",
+  });
 
   return rows[0];
 }

@@ -16,6 +16,7 @@ import {
   deleteCampanhaSheet,
 } from "../services/campanhasService.js";
 import { fetchSheetHeaders, invalidateCache } from "../services/sheetsClient.js";
+import { listarAcoesPorCampanha } from "../services/actionLogService.js";
 
 const router = Router();
 
@@ -72,7 +73,7 @@ router.post("/", requireRole("agencia"), async (req, res, next) => {
   try {
     const { nome, dataInicio, dataFim } = req.body;
     if (!nome) return res.status(400).json({ error: "Campo obrigatório: nome" });
-    const campanha = await createCampanha(nome, { dataInicio, dataFim });
+    const campanha = await createCampanha(nome, { dataInicio, dataFim }, req.user.id);
     res.status(201).json(campanha);
   } catch (err) {
     if (err.code === "23505") {
@@ -86,7 +87,7 @@ router.put("/:id", requireRole("agencia"), async (req, res, next) => {
   try {
     const { nome, dataInicio, dataFim } = req.body;
     if (!nome) return res.status(400).json({ error: "Campo obrigatório: nome" });
-    const updated = await updateCampanhaNome(req.params.id, nome, { dataInicio, dataFim });
+    const updated = await updateCampanhaNome(req.params.id, nome, { dataInicio, dataFim }, req.user.id);
     if (!updated) return res.status(404).json({ error: "Campanha não encontrada" });
     res.json(updated);
   } catch (err) {
@@ -103,7 +104,7 @@ router.patch("/:id/status", requireRole("agencia"), async (req, res, next) => {
     if (!["ativo", "pausado", "em_analise", "agendado", "programado", "aprovado", "cancelado", "finalizado"].includes(status)) {
       return res.status(400).json({ error: "Status inválido" });
     }
-    const updated = await updateCampanhaStatus(req.params.id, status);
+    const updated = await updateCampanhaStatus(req.params.id, status, req.user.id);
     if (!updated) return res.status(404).json({ error: "Campanha não encontrada" });
     res.json(updated);
   } catch (err) {
@@ -115,7 +116,7 @@ router.patch("/:id/status", requireRole("agencia"), async (req, res, next) => {
 router.patch("/:id/ga4", requireRole("agencia"), async (req, res, next) => {
   try {
     const { ga4PropertyId } = req.body;
-    const updated = await updateGa4PropertyId(req.params.id, ga4PropertyId);
+    const updated = await updateGa4PropertyId(req.params.id, ga4PropertyId, req.user.id);
     if (!updated) return res.status(404).json({ error: "Campanha não encontrada" });
     res.json(updated);
   } catch (err) {
@@ -156,9 +157,20 @@ router.delete("/:id/sheet", requireRole("agencia"), async (req, res, next) => {
 
 router.delete("/:id", requireRole("agencia"), async (req, res, next) => {
   try {
-    const deleted = await deleteCampanha(req.params.id);
+    const deleted = await deleteCampanha(req.params.id, req.user.id);
     if (!deleted) return res.status(404).json({ error: "Campanha não encontrada" });
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Log de auditoria da campanha (criativos + a propria campanha): criacao, edicao
+// campo a campo, mudanca de status e exclusao, manual ou automatica. So agencia
+// ve -- qualquer um dos agentes ve as acoes de todos os outros.
+router.get("/:campanhaId/action-log", requireRole("agencia"), async (req, res, next) => {
+  try {
+    res.json(await listarAcoesPorCampanha(req.params.campanhaId));
   } catch (err) {
     next(err);
   }

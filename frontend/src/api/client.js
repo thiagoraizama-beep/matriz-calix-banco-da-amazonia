@@ -304,6 +304,12 @@ export function deleteCampanha(id) {
   return api.delete(`/campanhas/${id}`).then((r) => r.data);
 }
 
+// Log de auditoria (criativos + campanha): criacao, edicao campo a campo,
+// mudanca de status e exclusao, manual ou automatica.
+export function getCampanhaActionLog(campanhaId) {
+  return api.get(`/campanhas/${campanhaId}/action-log`).then((r) => r.data);
+}
+
 // GA4: vincula o Property ID de uma propriedade GA4 a uma campanha (usado para
 // resolver sessoes/leads por criativo, casados pela URL de destino cadastrada).
 export function getGa4ServiceAccount() {

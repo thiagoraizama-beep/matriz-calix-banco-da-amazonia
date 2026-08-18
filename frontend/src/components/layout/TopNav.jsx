@@ -12,6 +12,7 @@ import { useCampanhasHomeFiltersContext } from "../../context/CampanhasHomeFilte
 import MultiSelectDropdown from "./MultiSelectDropdown.jsx";
 import { papelLabel } from "../../utils/papelLabel.js";
 import { STATUS_LABEL, STATUS_OPTIONS } from "../../utils/campanhaStatus.js";
+import ActionLogModal from "../contentMatrix/AgencyView/ActionLogModal.jsx";
 
 const STATUS_KEY_BY_LABEL = Object.fromEntries(STATUS_OPTIONS.map((key) => [STATUS_LABEL[key], key]));
 
@@ -65,6 +66,16 @@ function CompareIcon() {
   );
 }
 
+function HistoryIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+      <path d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -74,12 +85,13 @@ function SettingsIcon() {
   );
 }
 
-export default function TopNav({ activePage, onNavigate, user, showMatrixFilters, showCampanhasFilters, showVoltar, onVoltar }) {
+export default function TopNav({ activePage, onNavigate, user, showMatrixFilters, showCampanhasFilters, showVoltar, onVoltar, campanhaId }) {
   const { logout } = useAuth();
   const { theme } = useTheme();
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [actionLogAberto, setActionLogAberto] = useState(false);
   const matrixFilters = useMatrixFiltersContext();
   const campanhasFilters = useCampanhasHomeFiltersContext();
   const matrixLabel = user?.papel === "cliente" ? "Relatório de Criativos" : PAGES.MATRIZ_CONTEUDO;
@@ -322,6 +334,20 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
             A implementar
           </button>
         )}
+        {campanhaId && user?.papel === "agencia" && (
+          <button
+            onClick={() => setActionLogAberto(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999,
+              border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)",
+              fontSize: 13, fontWeight: 600, cursor: "pointer", marginRight: 6,
+            }}
+          >
+            <HistoryIcon />
+            Histórico
+          </button>
+        )}
+        {actionLogAberto && <ActionLogModal campanhaId={campanhaId} onClose={() => setActionLogAberto(false)} />}
         <NotificationBell variant="plain" />
 
         <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 6px" }} />

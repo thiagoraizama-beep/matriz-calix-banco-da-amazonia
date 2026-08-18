@@ -167,7 +167,7 @@ router.put(
         file: req.file,
         impulsionado: impulsionado !== undefined ? impulsionado !== "false" : undefined,
         tiposCompra: tiposCompra ? JSON.parse(tiposCompra) : undefined,
-      });
+      }, req.user.id);
       if (!updated) return res.status(404).json({ error: "Criativo não encontrado" });
       res.json(updated);
     } catch (err) {
@@ -184,7 +184,7 @@ router.delete("/bulk", requireRole("agencia"), async (req, res, next) => {
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "Informe ao menos um id de criativo" });
     }
-    const resultado = await deleteCreativesBulk(ids);
+    const resultado = await deleteCreativesBulk(ids, req.user.id);
     res.json(resultado);
   } catch (err) {
     next(err);
@@ -193,7 +193,7 @@ router.delete("/bulk", requireRole("agencia"), async (req, res, next) => {
 
 router.delete("/:id", requireRole("agencia"), async (req, res, next) => {
   try {
-    const deleted = await deleteCreative(req.params.id);
+    const deleted = await deleteCreative(req.params.id, req.user.id);
     if (!deleted) return res.status(404).json({ error: "Criativo não encontrado" });
     res.status(204).end();
   } catch (err) {

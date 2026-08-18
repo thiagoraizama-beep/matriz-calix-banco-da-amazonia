@@ -362,3 +362,29 @@ CREATE INDEX IF NOT EXISTS idx_status_sync_runs_campanha ON status_sync_runs(cam
 ALTER TABLE status_sync_runs DROP CONSTRAINT IF EXISTS status_sync_runs_campanha_id_fkey;
 ALTER TABLE status_sync_runs ADD CONSTRAINT status_sync_runs_campanha_id_fkey
   FOREIGN KEY (campanha_id) REFERENCES campanhas(id) ON DELETE SET NULL;
+
+-- Log de auditoria generico (criativos e campanhas por enquanto, extensivel a
+-- outros cadastros depois via entidade_tipo): toda criacao/edicao/status/exclusao
+-- fica registrada aqui, com quem fez e quando. SEM FK para creatives/campanhas em
+-- entidade_id -- se tivesse, um DELETE em cascata apagaria o proprio registro da
+-- exclusao junto com a linha, o que anularia o proposito de auditar exclusoes.
+-- entidade_nome guarda uma copia do nome no momento da acao, para o log continuar
+-- legivel mesmo depois do item original ter sido excluido. campanha_id usa
+-- ON DELETE SET NULL (nao CASCADE): se fosse CASCADE, excluir a PROPRIA campanha
+-- apagaria o log dessa exclusao junto -- SET NULL preserva a linha (fica sem
+-- campanha associada, visivel numa eventual tela de log global futura).
+CREATE TABLE IF NOT EXISTS action_log (
+  id SERIAL PRIMARY KEY,
+  entidade_tipo TEXT NOT NULL CHECK (entidade_tipo IN ('criativo', 'campanha')),
+  entidade_id INTEGER,
+  entidade_nome TEXT NOT NULL,
+  campanha_id INTEGER REFERENCES campanhas(id) ON DELETE SET NULL,
+  acao TEXT NOT NULL CHECK (acao IN ('criacao', 'edicao', 'status', 'exclusao')),
+  campo TEXT,
+  valor_anterior TEXT,
+  valor_novo TEXT,
+  alterado_por INTEGER REFERENCES users(id),
+  origem TEXT NOT NULL DEFAULT 'manual' CHECK (origem IN ('manual', 'automatico')),
+  criado_em TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_action_log_campanha ON action_log(campanha_id);

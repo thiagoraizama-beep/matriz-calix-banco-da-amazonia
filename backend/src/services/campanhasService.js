@@ -1,4 +1,12 @@
 import { query } from "../config/database.js";
+import { registrarAcao, registrarEdicaoCampos } from "./actionLogService.js";
+
+const LABELS_CAMPOS_CAMPANHA = {
+  nome: "Nome",
+  dataInicio: "Data de início",
+  dataFim: "Data de fim",
+  ga4PropertyId: "Property ID GA4",
+};
 
 // Status efetivo: se data_fim ja passou, a campanha esta "finalizado" independente
 // do status salvo -- data vencida tem prioridade sobre status manual (Pausada/Em
@@ -158,15 +166,25 @@ export async function getCampanhaById(id) {
   return rows[0] ? toPublicCampanha(rows[0]) : null;
 }
 
-export async function createCampanha(nome, { dataInicio, dataFim } = {}) {
+export async function createCampanha(nome, { dataInicio, dataFim } = {}, alteradoPor = null) {
   const { rows } = await query(
     "INSERT INTO campanhas (nome, data_inicio, data_fim) VALUES ($1, $2, $3) RETURNING *",
     [nome, dataInicio || null, dataFim || null]
   );
-  return { ...toPublicCampanha(rows[0]), veiculos: [] };
+  const campanha = rows[0];
+  await registrarAcao({
+    entidadeTipo: "campanha",
+    entidadeId: campanha.id,
+    entidadeNome: campanha.nome,
+    campanhaId: campanha.id,
+    acao: "criacao",
+    alteradoPor,
+  });
+  return { ...toPublicCampanha(campanha), veiculos: [] };
 }
 
-export async function updateCampanhaNome(id, nome, { dataInicio, dataFim } = {}) {
+export async function updateCampanhaNome(id, nome, { dataInicio, dataFim } = {}, alteradoPor = null) {
+  const antiga = await getCampanhaById(id);
   const { rows } = await query(
     `UPDATE campanhas SET
       nome = $2,
@@ -175,7 +193,24 @@ export async function updateCampanhaNome(id, nome, { dataInicio, dataFim } = {})
      WHERE id = $1 RETURNING *`,
     [id, nome, dataInicio || null, dataFim || null]
   );
-  return rows[0] ? toPublicCampanha(rows[0]) : null;
+  const campanha = rows[0];
+  if (campanha && antiga) {
+    await registrarEdicaoCampos({
+      entidadeTipo: "campanha",
+      entidadeId: campanha.id,
+      entidadeNome: campanha.nome,
+      campanhaId: campanha.id,
+      camposAntes: {
+        nome: antiga.nome,
+        dataInicio: antiga.data_inicio?.toString().slice(0, 10),
+        dataFim: antiga.data_fim?.toString().slice(0, 10),
+      },
+      camposDepois: { nome, dataInicio: dataInicio || undefined, dataFim: dataFim || undefined },
+      alteradoPor,
+      labels: LABELS_CAMPOS_CAMPANHA,
+    });
+  }
+  return campanha ? toPublicCampanha(campanha) : null;
 }
 
 // Resolve o Property ID do GA4 a usar para um filtro de campanha do Dashboard.
@@ -193,12 +228,26 @@ export async function resolveGa4PropertyId(campanhaFiltro) {
 // Vincula/desvincula o Property ID do GA4 desta campanha (Perfil > Integrações GA4).
 // ga4PropertyId null/vazio remove o vinculo -- o card de Sessoes volta a mostrar
 // "Sem dados" para essa campanha em vez de tentar consultar uma property inexistente.
-export async function updateGa4PropertyId(id, ga4PropertyId) {
+export async function updateGa4PropertyId(id, ga4PropertyId, alteradoPor = null) {
+  const antiga = await getCampanhaById(id);
   const { rows } = await query(
     "UPDATE campanhas SET ga4_property_id = $2 WHERE id = $1 RETURNING *",
     [id, ga4PropertyId || null]
   );
-  return rows[0] ? toPublicCampanha(rows[0]) : null;
+  const campanha = rows[0];
+  if (campanha && antiga) {
+    await registrarEdicaoCampos({
+      entidadeTipo: "campanha",
+      entidadeId: campanha.id,
+      entidadeNome: campanha.nome,
+      campanhaId: campanha.id,
+      camposAntes: { ga4PropertyId: antiga.ga4_property_id },
+      camposDepois: { ga4PropertyId: ga4PropertyId || null },
+      alteradoPor,
+      labels: LABELS_CAMPOS_CAMPANHA,
+    });
+  }
+  return campanha ? toPublicCampanha(campanha) : null;
 }
 
 // Le o vinculo de planilha (Sheet ID + range + mapeamento de colunas) desta
@@ -272,15 +321,41 @@ export async function deleteCampanhaSheet(campanhaId) {
   return rowCount > 0;
 }
 
-export async function updateCampanhaStatus(id, status) {
+export async function updateCampanhaStatus(id, status, alteradoPor = null) {
+  const antiga = await getCampanhaById(id);
   const { rows } = await query(
     "UPDATE campanhas SET status = $2 WHERE id = $1 RETURNING *",
     [id, status]
   );
-  return rows[0] ? toPublicCampanha(rows[0]) : null;
+  const campanha = rows[0];
+  if (campanha && antiga) {
+    await registrarAcao({
+      entidadeTipo: "campanha",
+      entidadeId: campanha.id,
+      entidadeNome: campanha.nome,
+      campanhaId: campanha.id,
+      acao: "status",
+      campo: "Status",
+      valorAnterior: antiga.status,
+      valorNovo: status,
+      alteradoPor,
+    });
+  }
+  return campanha ? toPublicCampanha(campanha) : null;
 }
 
-export async function deleteCampanha(id) {
+export async function deleteCampanha(id, alteradoPor = null) {
+  const campanha = await getCampanhaById(id);
+  if (campanha) {
+    await registrarAcao({
+      entidadeTipo: "campanha",
+      entidadeId: campanha.id,
+      entidadeNome: campanha.nome,
+      campanhaId: campanha.id,
+      acao: "exclusao",
+      alteradoPor,
+    });
+  }
   const { rowCount } = await query("DELETE FROM campanhas WHERE id = $1", [id]);
   return rowCount > 0;
 }

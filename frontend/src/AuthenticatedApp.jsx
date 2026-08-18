@@ -151,6 +151,11 @@ function AppShell({
   const navigate = useNavigate();
   const campanhasParaAnalise = useMemo(() => campanhasComAnalise(user, campanhas), [user, campanhas]);
   const dentroDeCampanha = activePage === PAGES.MATRIZ_CONTEUDO && location.pathname !== "/matriz-de-conteudo";
+  // Extrai o campanhaId direto da URL (/matriz-de-conteudo/:campanhaId) para o
+  // TopNav poder mostrar o botao de Historico escopado aquela campanha -- mesma
+  // fonte de verdade que MatrizDrillIn usa via useParams, so que aqui (AppShell)
+  // nao ha acesso a esse param porque e renderizado fora da Route especifica.
+  const campanhaIdAtual = dentroDeCampanha ? location.pathname.split("/matriz-de-conteudo/")[1]?.split("/")[0] : null;
   const showMatrixFilters = USE_TOP_NAV && !isMobile && dentroDeCampanha;
   const showCampanhasFilters = USE_TOP_NAV && !isMobile && activePage === PAGES.MATRIZ_CONTEUDO && !dentroDeCampanha;
   const showVoltar = dentroDeCampanha || activePage === PAGES.A_IMPLEMENTAR;
@@ -168,6 +173,7 @@ function AppShell({
           showCampanhasFilters={showCampanhasFilters}
           showVoltar={showVoltar}
           onVoltar={() => navigate("/matriz-de-conteudo")}
+          campanhaId={campanhaIdAtual}
         />
       )}
       {(!USE_TOP_NAV || isMobile) && (
