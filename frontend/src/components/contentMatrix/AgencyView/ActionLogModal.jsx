@@ -21,6 +21,26 @@ function formatDataHora(iso) {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+const CAMPOS_MONETARIOS = new Set(["Orçamento projetado"]);
+// Datas ISO (2026-08-31, gravadas hoje) ou o formato bruto de Date.toString() do JS
+// (ex: "Mon Aug 31 2026...", que ficou salvo em registros de historico anteriores
+// a correcao do bug de gravacao) -- ambos viram DD/MM/AAAA aqui na exibicao.
+const REGEX_DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const REGEX_DATA_JS_TOSTRING = /^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{4}/;
+
+function formatValorCampo(valor, campo) {
+  if (!valor) return valor;
+  if (CAMPOS_MONETARIOS.has(campo)) {
+    const num = Number(String(valor).replace(",", "."));
+    if (!Number.isNaN(num)) return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+  if (REGEX_DATA_ISO.test(valor) || REGEX_DATA_JS_TOSTRING.test(valor)) {
+    const d = new Date(valor);
+    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString("pt-BR");
+  }
+  return valor;
+}
+
 function AcaoBadge({ acao }) {
   const cor = ACAO_COR[acao] || { bg: "var(--border)", color: "var(--text-secondary)" };
   return (
@@ -79,8 +99,8 @@ export default function ActionLogModal({ campanhaId, onClose }) {
                 {(a.acao === "edicao" || a.acao === "status") && (
                   <p style={{ margin: "0 0 4px", fontSize: 12.5 }}>
                     <strong>{a.campo}:</strong>{" "}
-                    {a.valor_anterior ? `${a.valor_anterior} → ` : ""}
-                    {a.valor_novo || <span style={{ color: "var(--text-secondary)" }}>(vazio)</span>}
+                    {a.valor_anterior ? `${formatValorCampo(a.valor_anterior, a.campo)} → ` : ""}
+                    {formatValorCampo(a.valor_novo, a.campo) || <span style={{ color: "var(--text-secondary)" }}>(vazio)</span>}
                   </p>
                 )}
                 <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-secondary)" }}>

@@ -275,7 +275,13 @@ export default function CreativeGridCard({
       className="card"
       style={{
         padding: 0, overflow: "hidden", display: "flex", flexDirection: "column",
-        boxShadow: selected ? "0 0 0 2px var(--accent)" : urgenciaLabel ? "0 0 0 2px #c77f1a" : undefined,
+        boxShadow: selected
+          ? "0 0 0 2px var(--accent)"
+          : creative.status === "Aguardando implementação"
+          ? "0 0 0 2px #39ff8a"
+          : urgenciaLabel
+          ? "0 0 0 2px #c77f1a"
+          : undefined,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>
