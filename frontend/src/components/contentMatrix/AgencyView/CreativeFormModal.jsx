@@ -19,10 +19,28 @@ const TODOS_FORMATOS = [
 
 const TIPOS_COMPRA_OPTIONS = ["CPC", "CPM", "CPV", "CPE", "CPL", "CPT", "CPF", "CPA"];
 
+// Abas do formulario, cada uma agrupando campos relacionados -- em vez de uma
+// unica lista vertical de ~18 campos, quebra em blocos digestiveis. Cada campo
+// obrigatorio mapeia pra uma aba (ver CAMPO_PARA_ABA abaixo), usado pra pular
+// automaticamente pra aba certa quando a validacao falha num campo que esta
+// numa aba diferente da atual.
+const TABS = [
+  { id: "basico", label: "Básico" },
+  { id: "compra", label: "Compra e formato" },
+  { id: "detalhes", label: "Detalhes técnicos" },
+  { id: "notas", label: "Notas" },
+];
+
+const CAMPO_PARA_ABA = {
+  linkPostagem: "basico", file: "basico", campanha: "basico", veiculo: "basico", plataforma: "basico", nome: "basico",
+  tipoCompra: "compra", formato: "compra", periodo: "compra",
+  adName: "detalhes",
+};
+
 function Field({ label, children, invalid }) {
   return (
     <div>
-      <label style={{ fontSize: 12, color: invalid ? "var(--danger)" : "var(--text-secondary)", display: "block", marginBottom: 4, fontWeight: invalid ? 700 : 400 }}>
+      <label style={{ fontSize: 12, color: invalid ? "var(--danger)" : "var(--text-secondary)", display: "block", marginBottom: 5, fontWeight: invalid ? 700 : 500 }}>
         {label}
       </label>
       <div style={invalid ? { outline: "1px solid var(--danger)", borderRadius: 8 } : undefined}>
@@ -77,6 +95,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   const [plataformasVeiculo, setPlataformasVeiculo] = useState([]);
   const [campanhaVeiculoId, setCampanhaVeiculoId] = useState(creative?.campanha_veiculo_id || null);
   const [confirmandoFechar, setConfirmandoFechar] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState("basico");
 
   useEffect(() => {
     getCampanhas()
@@ -206,7 +225,12 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     setError("");
     setCampoInvalido(null);
     const erroValidacao = validarCamposObrigatorios();
-    if (erroValidacao) { setError(erroValidacao.mensagem); setCampoInvalido(erroValidacao.campo); return; }
+    if (erroValidacao) {
+      setError(erroValidacao.mensagem);
+      setCampoInvalido(erroValidacao.campo);
+      setAbaAtiva(CAMPO_PARA_ABA[erroValidacao.campo] || "basico");
+      return;
+    }
     setSaving(true);
     try {
       if (isEdit) {
@@ -271,290 +295,352 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(20,33,61,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(20,33,61,0.55)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}
     >
       <form
         onSubmit={handleSubmit}
-        className="card"
-        style={{ width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, position: "relative" }}
+        style={{
+          width: "100%", maxWidth: 640, maxHeight: "92vh", overflowY: "auto",
+          display: "flex", flexDirection: "column",
+          background: "var(--card-bg)", borderRadius: 16, boxShadow: "0 24px 60px rgba(10,16,32,0.35)",
+        }}
       >
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <strong style={{ fontSize: 15 }}>{title}</strong>
-          <button type="button" onClick={handleFechar} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-secondary)", lineHeight: 1 }}>×</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 0" }}>
+          <strong style={{ fontSize: 17, fontWeight: 700 }}>{title}</strong>
+          <button
+            type="button"
+            onClick={handleFechar}
+            aria-label="Fechar"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: "50%", border: "none", background: "var(--bg)", cursor: "pointer", color: "var(--text-secondary)" }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
 
-        {/* Impulsionado / Darkpost -- decide o que aparece no campo seguinte:
-            Impulsionado pede o link do post ja publicado, Dark Post exige upload
-            de arquivo (nao existe como post organico). */}
-        <Field label="Tipo de publicação">
-          <div style={{ display: "flex", gap: 12, marginTop: 2 }}>
-            {[{ label: "Impulsionado", val: true }, { label: "Dark Post", val: false }].map(({ label, val }) => (
-              <label key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="impulsionado"
-                  checked={impulsionado === val}
-                  onChange={() => setImpulsionado(val)}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </Field>
-
-        {impulsionado && (
-          <Field label="Link da postagem *" invalid={campoInvalido === "linkPostagem"}>
-            <input
-              value={linkPostagem}
-              onChange={(e) => setLinkPostagem(e.target.value)}
-              type="text"
-              placeholder="https://..."
-              style={inputStyle}
-            />
-          </Field>
-        )}
-
-        {/* Arquivo -- obrigatorio so para Dark Post (nao existe post organico pra
-            linkar); em Impulsionado fica opcional, so para ter uma imagem de
-            preview do card na Matriz (o usuario pode subir um print/download da
-            peca se quiser). */}
-        <Field
-          label={impulsionado ? "Arquivo (opcional, para preview)" : isEdit ? "Arquivo (imagem ou vídeo)" : "Arquivo (imagem ou vídeo) *"}
-          invalid={campoInvalido === "file"}
-        >
-          {preview && (
-            <div style={{ marginBottom: 8, borderRadius: 8, overflow: "hidden", maxHeight: 140, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--border)" }}>
-              {(file ? file.type?.startsWith("video") : creative?.tipo_midia === "video") ? (
-                <video src={preview} style={{ maxHeight: 140, maxWidth: "100%" }} controls />
-              ) : (
-                <img src={preview} alt="preview" style={{ maxHeight: 140, maxWidth: "100%", objectFit: "contain" }} />
-              )}
-            </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, cursor: "pointer" }}
-            >
-              {isEdit ? "Trocar arquivo" : "Escolher arquivo"}
-            </button>
-            {file && (
-              <span style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {file.name}
-              </span>
-            )}
-            {isEdit && file && (
+        {/* Abas -- mesmo estilo underline do modal de detalhe do criativo */}
+        <div style={{ display: "flex", gap: 4, padding: "16px 24px 0", borderBottom: "1px solid var(--border)" }}>
+          {TABS.map((t) => {
+            const temErroNestaAba = campoInvalido && CAMPO_PARA_ABA[campoInvalido] === t.id;
+            return (
               <button
+                key={t.id}
                 type="button"
-                onClick={() => { setFile(null); setPreview(creative?.cloudinary_url || null); }}
-                style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
+                onClick={() => setAbaAtiva(t.id)}
+                style={{
+                  padding: "8px 4px 12px", marginRight: 20, border: "none", background: "transparent",
+                  color: temErroNestaAba ? "var(--danger)" : abaAtiva === t.id ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: abaAtiva === t.id ? 700 : 500, fontSize: 13.5, cursor: "pointer",
+                  borderBottom: abaAtiva === t.id ? "2px solid var(--accent)" : "2px solid transparent",
+                  transition: "color 0.15s ease, border-color 0.15s ease",
+                }}
               >
-                Cancelar troca
+                {t.label}
               </button>
-            )}
-          </div>
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileChange} style={{ display: "none" }} />
-        </Field>
+            );
+          })}
+        </div>
 
-        {/* Campanha → carrega veículos */}
-        <Field label="Campanha *" invalid={campoInvalido === "campanha"}>
-          <SearchSelect
-            value={campanha}
-            onChange={handleCampanhaChange}
-            options={campanhaOptions}
-            placeholder="Selecione a campanha..."
-            allowFreeText
-          />
-        </Field>
+        <div style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+          {abaAtiva === "basico" && (
+            <>
+              {/* Impulsionado / Darkpost -- decide o que aparece no campo seguinte:
+                  Impulsionado pede o link do post ja publicado, Dark Post exige upload
+                  de arquivo (nao existe como post organico). */}
+              <Field label="Tipo de publicação">
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[{ label: "Impulsionado", val: true }, { label: "Dark Post", val: false }].map(({ label, val }) => {
+                    const sel = impulsionado === val;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setImpulsionado(val)}
+                        style={{
+                          flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                          background: sel ? "var(--accent-soft)" : "transparent", color: sel ? "var(--accent)" : "var(--text-secondary)",
+                          fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
 
-        {/* Veículo — carregado a partir da campanha */}
-        <Field label="Veículo *" invalid={campoInvalido === "veiculo"}>
-          <SearchSelect
-            value={veiculo}
-            onChange={handleVeiculoChange}
-            options={veiculoOptions}
-            placeholder={campanha ? "Selecione o veículo..." : "Selecione a campanha primeiro"}
-            allowFreeText
-          />
-          {plataformasVeiculo.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <span style={{ fontSize: 11, color: campoInvalido === "plataforma" ? "var(--danger)" : "var(--text-secondary)", display: "block", marginBottom: 5, fontWeight: campoInvalido === "plataforma" ? 700 : 400 }}>
-                Plataforma *
-              </span>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {plataformasVeiculo.map((p) => {
-                  const sel = plataforma === p;
-                  return (
+              {impulsionado && (
+                <Field label="Link da postagem *" invalid={campoInvalido === "linkPostagem"}>
+                  <input
+                    value={linkPostagem}
+                    onChange={(e) => setLinkPostagem(e.target.value)}
+                    type="text"
+                    placeholder="https://..."
+                    style={inputStyle}
+                  />
+                </Field>
+              )}
+
+              {/* Arquivo -- obrigatorio so para Dark Post (nao existe post organico pra
+                  linkar); em Impulsionado fica opcional, so para ter uma imagem de
+                  preview do card na Matriz (o usuario pode subir um print/download da
+                  peca se quiser). */}
+              <Field
+                label={impulsionado ? "Arquivo (opcional, para preview)" : isEdit ? "Arquivo (imagem ou vídeo)" : "Arquivo (imagem ou vídeo) *"}
+                invalid={campoInvalido === "file"}
+              >
+                {preview && (
+                  <div style={{ marginBottom: 10, borderRadius: 10, overflow: "hidden", maxHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
+                    {(file ? file.type?.startsWith("video") : creative?.tipo_midia === "video") ? (
+                      <video src={preview} style={{ maxHeight: 160, maxWidth: "100%" }} controls />
+                    ) : (
+                      <img src={preview} alt="preview" style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain" }} />
+                    )}
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {isEdit ? "Trocar arquivo" : "Escolher arquivo"}
+                  </button>
+                  {file && (
+                    <span style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
+                      {file.name}
+                    </span>
+                  )}
+                  {isEdit && file && (
                     <button
-                      key={p}
                       type="button"
-                      onClick={() => setPlataforma(sel ? "" : p)}
-                      style={{
-                        padding: "4px 12px",
-                        borderRadius: 999,
-                        border: "1px solid",
-                        borderColor: sel ? "var(--accent)" : campoInvalido === "plataforma" ? "var(--danger)" : "var(--border)",
-                        background: sel ? "var(--accent)" : "transparent",
-                        color: sel ? "#fff" : "var(--text-secondary)",
-                        fontSize: 12,
-                        fontWeight: sel ? 700 : 400,
-                        cursor: "pointer",
-                      }}
+                      onClick={() => { setFile(null); setPreview(creative?.cloudinary_url || null); }}
+                      style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
                     >
-                      {p}
+                      Cancelar troca
                     </button>
-                  );
-                })}
+                  )}
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileChange} style={{ display: "none" }} />
+              </Field>
+
+              {/* Campanha → carrega veículos */}
+              <Field label="Campanha *" invalid={campoInvalido === "campanha"}>
+                <SearchSelect
+                  value={campanha}
+                  onChange={handleCampanhaChange}
+                  options={campanhaOptions}
+                  placeholder="Selecione a campanha..."
+                  allowFreeText
+                />
+              </Field>
+
+              {/* Veículo — carregado a partir da campanha */}
+              <Field label="Veículo *" invalid={campoInvalido === "veiculo"}>
+                <SearchSelect
+                  value={veiculo}
+                  onChange={handleVeiculoChange}
+                  options={veiculoOptions}
+                  placeholder={campanha ? "Selecione o veículo..." : "Selecione a campanha primeiro"}
+                  allowFreeText
+                />
+                {plataformasVeiculo.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <span style={{ fontSize: 11.5, color: campoInvalido === "plataforma" ? "var(--danger)" : "var(--text-secondary)", display: "block", marginBottom: 6, fontWeight: campoInvalido === "plataforma" ? 700 : 500 }}>
+                      Plataforma *
+                    </span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {plataformasVeiculo.map((p) => {
+                        const sel = plataforma === p;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPlataforma(sel ? "" : p)}
+                            style={{
+                              padding: "5px 13px",
+                              borderRadius: 999,
+                              border: "1px solid",
+                              borderColor: sel ? "var(--accent)" : campoInvalido === "plataforma" ? "var(--danger)" : "var(--border)",
+                              background: sel ? "var(--accent)" : "transparent",
+                              color: sel ? "#fff" : "var(--text-secondary)",
+                              fontSize: 12,
+                              fontWeight: sel ? 700 : 500,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </Field>
+
+              {/* Nome do criativo */}
+              <Field label="Nome do criativo *" invalid={campoInvalido === "nome"}>
+                <input value={nome} onChange={(e) => setNome(e.target.value)} required style={inputStyle} />
+              </Field>
+            </>
+          )}
+
+          {abaAtiva === "compra" && (
+            <>
+              {/* Tipo de compra — seleção única */}
+              <Field label="Tipo de compra *" invalid={campoInvalido === "tipoCompra"}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {TIPOS_COMPRA_OPTIONS.map((t) => {
+                    const sel = tipoCompra === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTipoCompra(sel ? "" : t)}
+                        style={{
+                          padding: "5px 13px",
+                          borderRadius: 999,
+                          border: "1px solid",
+                          borderColor: sel ? "var(--accent)" : campoInvalido === "tipoCompra" ? "var(--danger)" : "var(--border)",
+                          background: sel ? "var(--accent)" : "transparent",
+                          color: sel ? "#fff" : "var(--text-secondary)",
+                          fontSize: 12,
+                          fontWeight: sel ? 700 : 500,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              {/* Formato */}
+              <Field label="Formato *" invalid={campoInvalido === "formato"}>
+                <SearchSelect
+                  value={formato}
+                  onChange={(v) => setFormato(v || "")}
+                  options={TODOS_FORMATOS}
+                  placeholder="Stories, Reels, Feed..."
+                  allowFreeText
+                />
+              </Field>
+
+              {/* Período */}
+              <Field label="Período de veiculação *" invalid={campoInvalido === "periodo"}>
+                <SimpleDateRangeFields
+                  start={periodoInicio}
+                  end={periodoFim}
+                  onChange={(s, en) => { setPeriodoInicio(s); setPeriodoFim(en); }}
+                />
+              </Field>
+
+              {/* Performance -- independente do tipo de publicacao (Impulsionado ou Dark
+                  Post). Quando marcado, o card na Matriz mostra uma barra comparando o
+                  orcamento projetado aqui com o investimento real vindo da planilha
+                  (coluna Cost). */}
+              <div style={{ background: "var(--bg)", borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  <input type="checkbox" checked={ehPerformance} onChange={(e) => setEhPerformance(e.target.checked)} />
+                  Performance (acompanhar orçamento projetado x investido)
+                </label>
+
+                {ehPerformance && (
+                  <Field label="Orçamento projetado">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={(orcamentoCentavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      onChange={(e) => {
+                        // So digitos contam -- cada digito novo "empurra" os centavos, exatamente
+                        // como um campo de valor de app bancario.
+                        const digitos = e.target.value.replace(/\D/g, "");
+                        setOrcamentoCentavos(digitos ? Number(digitos) : 0);
+                      }}
+                      style={inputStyle}
+                    />
+                  </Field>
+                )}
               </div>
+            </>
+          )}
+
+          {abaAtiva === "detalhes" && (
+            <>
+              {/* Ad Name */}
+              <Field label="Ad Name *" invalid={campoInvalido === "adName"}>
+                <input
+                  value={adName}
+                  onChange={(e) => setAdName(e.target.value)}
+                  placeholder="Deve bater exatamente com o Ad Name da planilha"
+                  style={inputStyle}
+                />
+              </Field>
+
+              {/* Campaign Name (técnico) */}
+              <Field label="Campaign Name">
+                <input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} style={inputStyle} placeholder="Ex: BR_CAMPANHA-INSTITUCIONAL-2026_CPM" />
+              </Field>
+
+              {/* Conjunto / Ad Group */}
+              <Field label="Ad Group">
+                <input value={conjunto} onChange={(e) => setConjunto(e.target.value)} style={inputStyle} />
+              </Field>
+
+              {/* URL destino */}
+              <Field label="URL de destino">
+                <input value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} type="text" placeholder="https://" style={inputStyle} />
+              </Field>
+
+              {/* Segmentação */}
+              <Field label="Segmentação">
+                <textarea value={segmentacao} onChange={(e) => setSegmentacao(e.target.value)} rows={2} style={textareaStyle} placeholder="Descreva o público-alvo..." />
+              </Field>
+
+              {/* Título */}
+              <Field label="Título do criativo">
+                <input value={titulo} onChange={(e) => setTitulo(e.target.value)} style={inputStyle} />
+              </Field>
+            </>
+          )}
+
+          {abaAtiva === "notas" && (
+            <>
+              {/* Descrição */}
+              <Field label="Descrição">
+                <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={4} style={textareaStyle} />
+              </Field>
+
+              {/* Observações */}
+              <Field label="Observações">
+                <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={3} style={textareaStyle} />
+              </Field>
+            </>
+          )}
+
+          {error && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(220,38,38,0.1)", color: "var(--danger)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {error}
             </div>
           )}
-        </Field>
 
-        {/* Tipo de compra — seleção única */}
-        <Field label="Tipo de compra *" invalid={campoInvalido === "tipoCompra"}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
-            {TIPOS_COMPRA_OPTIONS.map((t) => {
-              const sel = tipoCompra === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTipoCompra(sel ? "" : t)}
-                  style={{
-                    padding: "4px 12px",
-                    borderRadius: 999,
-                    border: "1px solid",
-                    borderColor: sel ? "var(--accent)" : campoInvalido === "tipoCompra" ? "var(--danger)" : "var(--border)",
-                    background: sel ? "var(--accent)" : "transparent",
-                    color: sel ? "#fff" : "var(--text-secondary)",
-                    fontSize: 12,
-                    fontWeight: sel ? 700 : 400,
-                    cursor: "pointer",
-                  }}
-                >
-                  {t}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-
-        {/* Performance -- independente do tipo de publicacao (Impulsionado ou Dark
-            Post). Quando marcado, o card na Matriz mostra uma barra comparando o
-            orcamento projetado aqui com o investimento real vindo da planilha
-            (coluna Cost). */}
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-          <input type="checkbox" checked={ehPerformance} onChange={(e) => setEhPerformance(e.target.checked)} />
-          Performance (acompanhar orçamento projetado x investido)
-        </label>
-
-        {ehPerformance && (
-          <Field label="Orçamento projetado">
-            <input
-              type="text"
-              inputMode="numeric"
-              value={(orcamentoCentavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              onChange={(e) => {
-                // So digitos contam -- cada digito novo "empurra" os centavos, exatamente
-                // como um campo de valor de app bancario.
-                const digitos = e.target.value.replace(/\D/g, "");
-                setOrcamentoCentavos(digitos ? Number(digitos) : 0);
-              }}
-              style={inputStyle}
-            />
-          </Field>
-        )}
-
-        {/* Nome do criativo */}
-        <Field label="Nome do criativo *" invalid={campoInvalido === "nome"}>
-          <input value={nome} onChange={(e) => setNome(e.target.value)} required style={inputStyle} />
-        </Field>
-
-        {/* Campaign Name (técnico) */}
-        <Field label="Campaign Name">
-          <input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} style={inputStyle} placeholder="Ex: BR_CAMPANHA-INSTITUCIONAL-2026_CPM" />
-        </Field>
-
-        {/* Conjunto / Ad Group */}
-        <Field label="Ad Group">
-          <input value={conjunto} onChange={(e) => setConjunto(e.target.value)} style={inputStyle} />
-        </Field>
-
-        {/* Ad Name */}
-        <Field label="Ad Name *" invalid={campoInvalido === "adName"}>
-          <input
-            value={adName}
-            onChange={(e) => setAdName(e.target.value)}
-            placeholder="Deve bater exatamente com o Ad Name da planilha"
-            style={inputStyle}
-          />
-        </Field>
-
-        {/* Formato */}
-        <Field label="Formato *" invalid={campoInvalido === "formato"}>
-          <SearchSelect
-            value={formato}
-            onChange={(v) => setFormato(v || "")}
-            options={TODOS_FORMATOS}
-            placeholder="Stories, Reels, Feed..."
-            allowFreeText
-          />
-        </Field>
-
-        {/* Período */}
-        <Field label="Período de veiculação *" invalid={campoInvalido === "periodo"}>
-          <SimpleDateRangeFields
-            start={periodoInicio}
-            end={periodoFim}
-            onChange={(s, en) => { setPeriodoInicio(s); setPeriodoFim(en); }}
-          />
-        </Field>
-
-        {/* URL destino */}
-        <Field label="URL de destino">
-          <input value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} type="text" placeholder="https://" style={inputStyle} />
-        </Field>
-
-        {/* Segmentação */}
-        <Field label="Segmentação">
-          <textarea value={segmentacao} onChange={(e) => setSegmentacao(e.target.value)} rows={2} style={textareaStyle} placeholder="Descreva o público-alvo..." />
-        </Field>
-
-        {/* Título */}
-        <Field label="Título do criativo">
-          <input value={titulo} onChange={(e) => setTitulo(e.target.value)} style={inputStyle} />
-        </Field>
-
-        {/* Descrição */}
-        <Field label="Descricao">
-          <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={3} style={textareaStyle} />
-        </Field>
-
-        {/* Observações */}
-        <Field label="Observacoes">
-          <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={2} style={textareaStyle} />
-        </Field>
-
-        {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(220,38,38,0.1)", color: "var(--danger)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            {error}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={saving}
-          style={{ padding: "10px 0", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
-        >
-          {saving ? "Salvando..." : isEdit ? "Salvar alterações" : creative?._duplicate ? "Criar cópia" : "Criar criativo"}
-        </button>
+          <button
+            type="submit"
+            disabled={saving}
+            style={{ padding: "11px 0", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? "Salvando..." : isEdit ? "Salvar alterações" : creative?._duplicate ? "Criar cópia" : "Criar criativo"}
+          </button>
+        </div>
       </form>
 
       {confirmandoFechar && (
