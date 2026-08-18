@@ -156,6 +156,19 @@ select {
   box-shadow: 0 1px 3px rgba(20, 33, 61, 0.06);
 }
 
+/* Cursor normal por padrao nos cards do Kanban (igual Trello -- so muda pra
+   "grabbing" durante o arrasto de fato); sem isso o card por baixo (ex:
+   CreativeGridCard) as vezes define seu proprio cursor num elemento interno,
+   que "ganha" por especificidade normal do CSS. */
+.kanban-drag-handle,
+.kanban-drag-handle * {
+  cursor: default !important;
+}
+.kanban-drag-handle.dragging,
+.kanban-drag-handle.dragging * {
+  cursor: grabbing !important;
+}
+
 .card-title {
   font-size: 14px;
   font-weight: 600;

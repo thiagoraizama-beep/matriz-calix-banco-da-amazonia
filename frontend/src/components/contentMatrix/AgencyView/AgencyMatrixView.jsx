@@ -6,13 +6,16 @@ import CreativeCardGrid from "../CreativeCardGrid.jsx";
 import CreativeGridCard from "../CreativeGridCard.jsx";
 import CreativeFusedDetailModal from "../CreativeFusedDetailModal.jsx";
 import CreativeComparisonPage from "../CreativeComparisonPage.jsx";
-import { STATUS_OPTIONS_AGENCIA } from "../statusBadge.jsx";
+import { STATUS_OPTIONS_AGENCIA, STATUS_OPTIONS_VEICULO, STATUS_COLORS } from "../statusBadge.jsx";
+import { useAuth } from "../../../context/AuthContext.jsx";
 import MatrixMobileHeader from "../MatrixMobileHeader.jsx";
 import { useMatrixFilters } from "../useMatrixFilters.js";
 import { groupByStatus } from "../statusCounts.js";
 import Spinner from "../../common/Spinner.jsx";
 import useIsMobile from "../../../hooks/useIsMobile.js";
 import ConfirmDialog from "../../common/ConfirmDialog.jsx";
+import KanbanBoard from "../../common/KanbanBoard.jsx";
+import { useVisualizacao } from "../../../hooks/useVisualizacao.js";
 import TrashIcon from "../../common/TrashIcon.jsx";
 import { isUrgente } from "../../../utils/urgencia.js";
 
@@ -70,7 +73,29 @@ function XIcon() {
   );
 }
 
+function GridIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
+
+function KanbanIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="5" height="18" rx="1" />
+      <rect x="10" y="3" width="5" height="12" rx="1" />
+      <rect x="17" y="3" width="5" height="8" rx="1" />
+    </svg>
+  );
+}
+
 export default function AgencyMatrixView({ campanhaId } = {}) {
+  const { user } = useAuth();
   const [creatives, setCreatives] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -87,6 +112,10 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const [bulkModalAberto, setBulkModalAberto] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [excluindoEmMassa, setExcluindoEmMassa] = useState(false);
+  // "grade" (padrao) ou "kanban" (colunas por status, arrastar muda o status)
+  // -- persistido entre navegacoes, ver useVisualizacao.
+  const [visualizacao, setVisualizacao] = useVisualizacao("matriz-visualizacao");
+  const [kanbanError, setKanbanError] = useState("");
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
   const statusCounts = creatives ? groupByStatus(creatives) : {};
@@ -146,6 +175,20 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     }
   }
 
+  // Usado pelo KanbanBoard -- mesma chamada de handleStatusChange, mas
+  // propaga o erro (403 de permissao, por ex.) em vez de engolir, para o
+  // board poder reverter o card visualmente e mostrar o aviso certo.
+  async function handleKanbanMove(creative, novoStatus) {
+    setKanbanError("");
+    try {
+      await updateMatrixCreativeStatus(creative.id, novoStatus);
+      setCreatives((prev) => prev.map((c) => (c.id === creative.id ? { ...c, status: novoStatus } : c)));
+    } catch (err) {
+      setKanbanError(err.response?.data?.error || "Não foi possível mover este criativo para esse status.");
+      throw err;
+    }
+  }
+
   function openEdit(creative) { setEditing(creative); setModalOpen(true); }
   function openCreate() { setEditing(null); setModalOpen(true); }
   function openDuplicate(creative) { setEditing({ ...creative, _duplicate: true, id: null }); setModalOpen(true); }
@@ -191,6 +234,24 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const newButton = !modoSelecaoAtivo && (
     <button onClick={openCreate} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
       <PlusIcon size={14} /> Novo criativo
+    </button>
+  );
+
+  // Toggle Grade/Kanban -- some durante um modo de selecao em lote, mesmo
+  // criterio dos demais botoes de acao (nao faz sentido trocar de visao com
+  // uma selecao em andamento).
+  // Um unico botao-icone que alterna entre os dois modos (em vez de 2 botoes
+  // lado a lado) -- mostra o icone do modo que sera ativado ao clicar.
+  const visualizacaoToggle = !modoSelecaoAtivo && (
+    <button
+      onClick={() => setVisualizacao(visualizacao === "grade" ? "kanban" : "grade")}
+      title={visualizacao === "grade" ? "Ver em Kanban" : "Ver em Grade"}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 999,
+        border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer",
+      }}
+    >
+      {visualizacao === "grade" ? <KanbanIcon /> : <GridIcon />}
     </button>
   );
 
@@ -315,6 +376,37 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     </>
   );
 
+  // Kanban usa os mesmos status permitidos ao papel do usuario (veiculo tem
+  // um subconjunto) -- arrastar para uma coluna fora desse conjunto nunca
+  // aparece como opcao, e mesmo assim a API valida de novo do lado do servidor.
+  const statusOptionsAtual = user?.papel === "veiculo" ? STATUS_OPTIONS_VEICULO : STATUS_OPTIONS_AGENCIA;
+
+  const kanbanBoard = !creatives ? <Spinner /> : (
+    <KanbanBoard
+      items={filteredOrdenado}
+      statusOptions={statusOptionsAtual}
+      statusColors={STATUS_COLORS}
+      renderCard={(c) => (
+        <CreativeGridCard
+          creative={c}
+          urgente={isUrgente(c.periodo_inicio)}
+          onOpenDetail={setViewing}
+          onEdit={openEdit}
+          onDuplicate={openDuplicate}
+          onDelete={setDeleting}
+          canEdit
+          statusOptions={statusOptionsAtual}
+          onStatusChange={handleStatusChange}
+          updatingStatus={updatingId === c.id}
+          performance={performanceMap[c.id]}
+        />
+      )}
+      onMoveCard={handleKanbanMove}
+      error={kanbanError}
+      onErrorClear={() => setKanbanError("")}
+    />
+  );
+
   const statusGrid = creatives && (
     <div className="grid status-grid-4" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 20 }}>
       {Object.entries(statusCounts).map(([status, count]) => (
@@ -379,7 +471,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         {syncFeedback}
         {urgenciaBanner}
         {statusGrid}
-        {grid}
+        {visualizacaoToggle}
+        {visualizacao === "kanban" ? kanbanBoard : grid}
         {modals}
       </div>
     );
@@ -393,12 +486,13 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         {abrirComparativoButton}
         {editarEmMassaButton}
         {editarEmMassaBarra}
+        {visualizacaoToggle}
         {newButton}
       </div>
       {syncResult && <div style={{ textAlign: "right" }}>{syncFeedback}</div>}
       {urgenciaBanner}
       {statusGrid}
-      {grid}
+      {visualizacao === "kanban" ? kanbanBoard : grid}
       {modals}
     </div>
   );

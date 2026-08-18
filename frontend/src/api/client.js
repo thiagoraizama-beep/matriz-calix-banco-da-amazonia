@@ -214,6 +214,36 @@ export function getCreativeHistory(id) {
   return api.get(`/creatives/${id}/history`).then((r) => r.data);
 }
 
+// Comentarios com @mencao
+export function getMentionableUsers(creativeId) {
+  return api.get(`/creatives/${creativeId}/comments/mentionable`).then((r) => r.data);
+}
+
+export function getCreativeComments(creativeId) {
+  return api.get(`/creatives/${creativeId}/comments`).then((r) => r.data);
+}
+
+export function postCreativeComment(creativeId, { texto, mencionadosIds }) {
+  return api.post(`/creatives/${creativeId}/comments`, { texto, mencionadosIds }).then((r) => r.data);
+}
+
+export function updateCreativeComment(commentId, texto) {
+  return api.put(`/creatives/comments/${commentId}`, { texto }).then((r) => r.data);
+}
+
+export function deleteCreativeComment(commentId) {
+  return api.delete(`/creatives/comments/${commentId}`).then((r) => r.data);
+}
+
+// Notificacoes de mencao (sino)
+export function getMentionNotifications() {
+  return api.get("/notifications/mentions").then((r) => r.data);
+}
+
+export function markMentionRead(mentionId) {
+  return api.patch(`/notifications/mentions/${mentionId}/read`).then((r) => r.data);
+}
+
 export function createMatrixCreative(formData) {
   return api.post("/creatives", formData, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
 }
@@ -282,6 +312,11 @@ export function getCampanhas() {
 // Home pos-login: lista campanhas paginada/pesquisavel (ja escopada por papel).
 export function getCampanhasHome({ busca, status, page, pageSize } = {}) {
   return api.get("/campanhas/home", { params: { busca, status, page, pageSize } }).then((r) => r.data);
+}
+
+// Kanban: campanhas nao finalizadas/canceladas, sem paginacao.
+export function getCampanhasKanban() {
+  return api.get("/campanhas/kanban").then((r) => r.data);
 }
 
 export function syncCampanhaStatus(campanhaId) {
