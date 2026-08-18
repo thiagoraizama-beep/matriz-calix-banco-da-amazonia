@@ -40,7 +40,7 @@ export default function ForgotPasswordPage({ onBack }) {
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
-        background: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('/hero-cover.jpg')`,
+        background: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('/pexels-christopher-borges-1300281899-24710600.jpg')`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         padding: 16,
