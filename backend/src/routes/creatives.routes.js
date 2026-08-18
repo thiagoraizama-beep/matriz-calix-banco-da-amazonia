@@ -19,7 +19,7 @@ import {
 } from "../services/creativesService.js";
 import {
   listMencionaveisPorCreative, listComentariosPorCreative, criarComentario,
-  editarComentario, excluirComentario,
+  editarComentario, excluirComentario, alternarReacao,
 } from "../services/commentsService.js";
 
 const router = Router();
@@ -135,15 +135,27 @@ router.get("/:id/comments", async (req, res, next) => {
 
 router.post("/:id/comments", async (req, res, next) => {
   try {
-    const { texto, mencionadosIds } = req.body;
+    const { texto, mencionadosIds, parentId } = req.body;
     if (!texto?.trim()) return res.status(400).json({ error: "Escreva algo para comentar" });
     const comentario = await criarComentario({
       creativeId: req.params.id,
       autorId: req.user.id,
       texto: texto.trim(),
       mencionadosIds: Array.isArray(mencionadosIds) ? mencionadosIds : [],
+      parentId: parentId || null,
     });
     res.status(201).json(comentario);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/comments/:commentId/reactions", async (req, res, next) => {
+  try {
+    const { emoji } = req.body;
+    if (!emoji?.trim()) return res.status(400).json({ error: "Informe um emoji" });
+    const reacoes = await alternarReacao(req.params.commentId, req.user.id, emoji.trim());
+    res.json(reacoes);
   } catch (err) {
     next(err);
   }

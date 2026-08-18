@@ -6,28 +6,6 @@ import CampaignComparisonSetupPage from "./CampaignComparisonSetupPage.jsx";
 import Spinner from "../components/common/Spinner.jsx";
 import KanbanBoard from "../components/common/KanbanBoard.jsx";
 import { useCampanhasHomeFiltersContext } from "../context/CampanhasHomeFiltersContext.jsx";
-import { useVisualizacao } from "../hooks/useVisualizacao.js";
-
-function GridIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  );
-}
-
-function KanbanIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="5" height="18" rx="1" />
-      <rect x="10" y="3" width="5" height="12" rx="1" />
-      <rect x="17" y="3" width="5" height="8" rx="1" />
-    </svg>
-  );
-}
 
 const PAGE_SIZE = 20;
 
@@ -64,12 +42,9 @@ function formatPeriodo(inicio, fim) {
 // alimenta o Comparativo de Campanhas, unico recurso que ainda precisa da lista
 // completa em vez da paginada.
 export default function CampanhasHomePage({ campanhasParaAnalise = [] }) {
-  const { busca, status, comparativoAberto, setComparativoAberto, setTotal, setTemComparativo } = useCampanhasHomeFiltersContext();
+  const { busca, status, comparativoAberto, setComparativoAberto, setTotal, setTemComparativo, visualizacao } = useCampanhasHomeFiltersContext();
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
-  // "grade" (padrao, paginado) ou "kanban" (colunas por status, sem paginacao
-  // -- busca propria, ver getCampanhasKanban). Persistido entre navegacoes.
-  const [visualizacao, setVisualizacao] = useVisualizacao("campanhas-visualizacao");
   const [kanbanCampanhas, setKanbanCampanhas] = useState(null);
   const [kanbanError, setKanbanError] = useState("");
   const navigate = useNavigate();
@@ -117,25 +92,9 @@ export default function CampanhasHomePage({ campanhasParaAnalise = [] }) {
 
   const totalPaginas = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
-  const visualizacaoToggle = (
-    <div style={{ marginBottom: 16 }}>
-      <button
-        onClick={() => setVisualizacao(visualizacao === "grade" ? "kanban" : "grade")}
-        title={visualizacao === "grade" ? "Ver em Kanban" : "Ver em Grade"}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 999,
-          border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer",
-        }}
-      >
-        {visualizacao === "grade" ? <KanbanIcon /> : <GridIcon />}
-      </button>
-    </div>
-  );
-
   if (visualizacao === "kanban") {
     return (
       <div style={{ paddingTop: 20 }}>
-        {visualizacaoToggle}
         {!kanbanCampanhas ? (
           <Spinner />
         ) : (
@@ -155,7 +114,6 @@ export default function CampanhasHomePage({ campanhasParaAnalise = [] }) {
 
   return (
     <div style={{ paddingTop: 20 }}>
-      {visualizacaoToggle}
       {!data ? (
         <Spinner />
       ) : data.items.length === 0 ? (

@@ -42,7 +42,16 @@ export async function listComentariosPorCreative(creativeId) {
      ORDER BY c.criado_em ASC`,
     [creativeId]
   );
-  return rows;
+
+  const { rows: reacoes } = await query(
+    `SELECT r.comment_id, r.emoji, r.usuario_id, u.nome AS usuario_nome
+     FROM comment_reactions r
+     JOIN users u ON u.id = r.usuario_id
+     WHERE r.comment_id = ANY($1::int[])`,
+    [rows.map((r) => r.id)]
+  );
+
+  return rows.map((c) => ({ ...c, reacoes: reacoes.filter((r) => r.comment_id === c.id) }));
 }
 
 // So o proprio autor pode editar/excluir -- lanca 403 se outro usuario tentar
@@ -79,10 +88,21 @@ export async function excluirComentario(commentId, userId) {
 // "quem pode ser mencionado" no servidor e silenciosamente ignora qualquer
 // id fora dessa lista (fail-closed, sem erro pro usuario -- ele so nao
 // consegue mencionar quem nao deveria, sem precisar saber o motivo exato).
-export async function criarComentario({ creativeId, autorId, texto, mencionadosIds = [] }) {
+export async function criarComentario({ creativeId, autorId, texto, mencionadosIds = [], parentId = null }) {
+  // Resposta so pode apontar pra um comentario que exista no MESMO criativo --
+  // evita, via API direta, encadear resposta num comentario de outro criativo.
+  let parentValido = null;
+  if (parentId) {
+    const { rows: parentRows } = await query(
+      "SELECT id FROM creative_comments WHERE id = $1 AND creative_id = $2",
+      [parentId, creativeId]
+    );
+    parentValido = parentRows[0]?.id || null;
+  }
+
   const { rows } = await query(
-    `INSERT INTO creative_comments (creative_id, autor_id, texto) VALUES ($1, $2, $3) RETURNING *`,
-    [creativeId, autorId, texto]
+    `INSERT INTO creative_comments (creative_id, autor_id, texto, parent_id) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [creativeId, autorId, texto, parentValido]
   );
   const comentario = rows[0];
 
@@ -132,4 +152,32 @@ export async function marcarNotificacaoLida(mentionId, userId) {
     [mentionId, userId]
   );
   return rowCount > 0;
+}
+
+// Toggle: se o usuario ja reagiu com esse emoji, remove; senao, adiciona.
+// Retorna a lista atualizada de reacoes do comentario (mais simples pro
+// frontend do que ficar calculando o delta local).
+export async function alternarReacao(commentId, userId, emoji) {
+  const { rows: existente } = await query(
+    "SELECT id FROM comment_reactions WHERE comment_id = $1 AND usuario_id = $2 AND emoji = $3",
+    [commentId, userId, emoji]
+  );
+
+  if (existente[0]) {
+    await query("DELETE FROM comment_reactions WHERE id = $1", [existente[0].id]);
+  } else {
+    await query(
+      "INSERT INTO comment_reactions (comment_id, usuario_id, emoji) VALUES ($1, $2, $3)",
+      [commentId, userId, emoji]
+    );
+  }
+
+  const { rows } = await query(
+    `SELECT r.comment_id, r.emoji, r.usuario_id, u.nome AS usuario_nome
+     FROM comment_reactions r
+     JOIN users u ON u.id = r.usuario_id
+     WHERE r.comment_id = $1`,
+    [commentId]
+  );
+  return rows;
 }

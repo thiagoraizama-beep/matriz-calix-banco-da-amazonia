@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { getMatrixCreatives, getCreativesByCampanha, deleteMatrixCreative, bulkDeleteCreatives, updateMatrixCreativeStatus, syncCampanhaStatus, getPerformancePorCampanha } from "../../../api/client.js";
 import CreativeFormModal from "./CreativeFormModal.jsx";
 import BulkEditModal from "./BulkEditModal.jsx";
@@ -15,7 +16,7 @@ import Spinner from "../../common/Spinner.jsx";
 import useIsMobile from "../../../hooks/useIsMobile.js";
 import ConfirmDialog from "../../common/ConfirmDialog.jsx";
 import KanbanBoard from "../../common/KanbanBoard.jsx";
-import { useVisualizacao } from "../../../hooks/useVisualizacao.js";
+import { useMatrixFiltersContext } from "../../../context/MatrixFiltersContext.jsx";
 import TrashIcon from "../../common/TrashIcon.jsx";
 import { isUrgente } from "../../../utils/urgencia.js";
 
@@ -73,34 +74,17 @@ function XIcon() {
   );
 }
 
-function GridIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  );
-}
-
-function KanbanIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="5" height="18" rx="1" />
-      <rect x="10" y="3" width="5" height="12" rx="1" />
-      <rect x="17" y="3" width="5" height="8" rx="1" />
-    </svg>
-  );
-}
-
 export default function AgencyMatrixView({ campanhaId } = {}) {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [creatives, setCreatives] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [viewing, setViewing] = useState(null);
+  // Aba com que o modal de detalhe abre -- "comentarios" quando veio de um
+  // clique numa notificacao de mencao (ver abaixo), "implementacao" no resto.
+  const [viewingAbaInicial, setViewingAbaInicial] = useState("implementacao");
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
@@ -113,8 +97,9 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [excluindoEmMassa, setExcluindoEmMassa] = useState(false);
   // "grade" (padrao) ou "kanban" (colunas por status, arrastar muda o status)
-  // -- persistido entre navegacoes, ver useVisualizacao.
-  const [visualizacao, setVisualizacao] = useVisualizacao("matriz-visualizacao");
+  // -- estado vem do MatrixFiltersContext (nao mais local) para que a TopNav
+  // renderize o toggle dentro do menu do usuario, igual ao Tema.
+  const { visualizacao, setVisualizacao } = useMatrixFiltersContext();
   const [kanbanError, setKanbanError] = useState("");
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
@@ -130,6 +115,26 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   }
 
   useEffect(() => { load(); }, [campanhaId]);
+
+  // Abertura automatica do modal de detalhe via ?criativo=<id> na URL -- usado
+  // ao clicar numa notificacao de mencao no sino (NotificationBell.jsx), que
+  // navega pra ca antes de abrir. So dispara quando a lista de criativos ja
+  // carregou (senao o id ainda nao existe pra buscar); remove o parametro da
+  // URL depois de abrir, pra nao reabrir o modal ao navegar de volta.
+  useEffect(() => {
+    const criativoIdParam = searchParams.get("criativo");
+    if (!criativoIdParam || !creatives) return;
+    const alvo = creatives.find((c) => String(c.id) === criativoIdParam);
+    if (alvo) {
+      setViewingAbaInicial("comentarios");
+      setViewing(alvo);
+    }
+    setSearchParams((prev) => {
+      const novo = new URLSearchParams(prev);
+      novo.delete("criativo");
+      return novo;
+    }, { replace: true });
+  }, [creatives, searchParams]);
 
   async function handleSync() {
     if (!campanhaId) return;
@@ -234,24 +239,6 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const newButton = !modoSelecaoAtivo && (
     <button onClick={openCreate} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
       <PlusIcon size={14} /> Novo criativo
-    </button>
-  );
-
-  // Toggle Grade/Kanban -- some durante um modo de selecao em lote, mesmo
-  // criterio dos demais botoes de acao (nao faz sentido trocar de visao com
-  // uma selecao em andamento).
-  // Um unico botao-icone que alterna entre os dois modos (em vez de 2 botoes
-  // lado a lado) -- mostra o icone do modo que sera ativado ao clicar.
-  const visualizacaoToggle = !modoSelecaoAtivo && (
-    <button
-      onClick={() => setVisualizacao(visualizacao === "grade" ? "kanban" : "grade")}
-      title={visualizacao === "grade" ? "Ver em Kanban" : "Ver em Grade"}
-      style={{
-        display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 999,
-        border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer",
-      }}
-    >
-      {visualizacao === "grade" ? <KanbanIcon /> : <GridIcon />}
     </button>
   );
 
@@ -428,7 +415,14 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     <>
       {modalOpen && <CreativeFormModal creative={editing} onClose={() => setModalOpen(false)} onSaved={load} />}
       {bulkModalAberto && <BulkEditModal ids={selecionados} onClose={() => setBulkModalAberto(false)} onSaved={handleBulkSaved} />}
-      {viewing && <CreativeFusedDetailModal creative={viewing} campanhaId={campanhaId} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <CreativeFusedDetailModal
+          creative={viewing}
+          campanhaId={campanhaId}
+          abaInicial={viewingAbaInicial}
+          onClose={() => { setViewing(null); setViewingAbaInicial("implementacao"); }}
+        />
+      )}
       {deleting && (
         <ConfirmDialog
           title="Excluir criativo"
@@ -471,7 +465,6 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         {syncFeedback}
         {urgenciaBanner}
         {statusGrid}
-        {visualizacaoToggle}
         {visualizacao === "kanban" ? kanbanBoard : grid}
         {modals}
       </div>
@@ -486,7 +479,6 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         {abrirComparativoButton}
         {editarEmMassaButton}
         {editarEmMassaBarra}
-        {visualizacaoToggle}
         {newButton}
       </div>
       {syncResult && <div style={{ textAlign: "right" }}>{syncFeedback}</div>}

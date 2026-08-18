@@ -169,6 +169,16 @@ select {
   cursor: grabbing !important;
 }
 
+/* Destaque "Aguardando implementação": brilho pulsante em vez de borda fixa,
+   pra chamar atenção de forma mais viva (efeito de luz "respirando"). */
+@keyframes glow-aguardando {
+  0%, 100% { box-shadow: 0 0 4px 0 rgba(143, 227, 176, 0.45); }
+  50% { box-shadow: 0 0 14px 3px rgba(143, 227, 176, 0.85); }
+}
+.card-glow-aguardando {
+  animation: glow-aguardando 1.8s ease-in-out infinite;
+}
+
 .card-title {
   font-size: 14px;
   font-weight: 600;

@@ -401,6 +401,23 @@ CREATE TABLE IF NOT EXISTS creative_comments (
 );
 CREATE INDEX IF NOT EXISTS idx_creative_comments_creative ON creative_comments(creative_id);
 ALTER TABLE creative_comments ADD COLUMN IF NOT EXISTS editado_em TIMESTAMP;
+-- Resposta encadeada: aponta pro comentario "pai". NULL = comentario de topo.
+-- So um nivel de profundidade (resposta a resposta ainda aponta pro mesmo pai
+-- raiz do lado do frontend) -- suficiente pro caso de uso, evita arvore recursiva.
+ALTER TABLE creative_comments ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES creative_comments(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_creative_comments_parent ON creative_comments(parent_id);
+
+-- Reacoes com emoji num comentario. Um usuario pode reagir com varios emojis
+-- diferentes ao mesmo comentario, mas nao repetir o mesmo emoji (UNIQUE).
+CREATE TABLE IF NOT EXISTS comment_reactions (
+  id SERIAL PRIMARY KEY,
+  comment_id INTEGER NOT NULL REFERENCES creative_comments(id) ON DELETE CASCADE,
+  usuario_id INTEGER NOT NULL REFERENCES users(id),
+  emoji TEXT NOT NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT now(),
+  UNIQUE (comment_id, usuario_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_comment_reactions_comment ON comment_reactions(comment_id);
 
 -- Uma linha por usuario mencionado num comentario (permite N mencoes por
 -- comentario). "lido" controla o badge do sino -- nao apaga a notificacao ao

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react";
+import { useVisualizacao } from "../hooks/useVisualizacao.js";
 
 // Estado dos filtros da Home de Campanhas (busca/status/comparativo), exposto aqui
 // para que a TopNav possa renderizar os controles (busca + status + Comparativo +
@@ -11,6 +12,7 @@ export function CampanhasHomeFiltersProvider({ children }) {
   const [comparativoAberto, setComparativoAberto] = useState(false);
   const [total, setTotal] = useState(null);
   const [temComparativo, setTemComparativo] = useState(false);
+  const [visualizacao, setVisualizacao] = useVisualizacao("campanhas-visualizacao");
 
   return (
     <CampanhasHomeFiltersContext.Provider
@@ -20,6 +22,7 @@ export function CampanhasHomeFiltersProvider({ children }) {
         comparativoAberto, setComparativoAberto,
         total, setTotal,
         temComparativo, setTemComparativo,
+        visualizacao, setVisualizacao,
       }}
     >
       {children}

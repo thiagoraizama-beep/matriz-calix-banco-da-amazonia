@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react";
+import { useVisualizacao } from "../hooks/useVisualizacao.js";
 
 // Estado dos filtros da Matriz de Conteudo (busca/status/veiculo/campanha/plataforma),
 // exposto aqui para que a TopNav possa renderizar os controles (busca + botao Filtro)
@@ -15,6 +16,9 @@ export function MatrixFiltersProvider({ children }) {
   const [plataforma, setPlataforma] = useState([]);
   const [modeloCompra, setModeloCompra] = useState([]);
   const [matrixOptions, setMatrixOptions] = useState({ statuses: [], veiculos: [], campanhas: [], plataformas: [], modelosCompra: [] });
+  // Preferencia Grade/Kanban -- exposta aqui (em vez de estado local na view) para
+  // que a TopNav renderize o toggle dentro do menu do usuario, igual ao Tema.
+  const [visualizacao, setVisualizacao] = useVisualizacao("matriz-visualizacao");
 
   return (
     <MatrixFiltersContext.Provider
@@ -26,6 +30,7 @@ export function MatrixFiltersProvider({ children }) {
         plataforma, setPlataforma,
         modeloCompra, setModeloCompra,
         matrixOptions, setMatrixOptions,
+        visualizacao, setVisualizacao,
       }}
     >
       {children}

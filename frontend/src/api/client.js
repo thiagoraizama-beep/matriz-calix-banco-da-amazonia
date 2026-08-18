@@ -223,8 +223,12 @@ export function getCreativeComments(creativeId) {
   return api.get(`/creatives/${creativeId}/comments`).then((r) => r.data);
 }
 
-export function postCreativeComment(creativeId, { texto, mencionadosIds }) {
-  return api.post(`/creatives/${creativeId}/comments`, { texto, mencionadosIds }).then((r) => r.data);
+export function postCreativeComment(creativeId, { texto, mencionadosIds, parentId }) {
+  return api.post(`/creatives/${creativeId}/comments`, { texto, mencionadosIds, parentId }).then((r) => r.data);
+}
+
+export function toggleCommentReaction(commentId, emoji) {
+  return api.post(`/creatives/comments/${commentId}/reactions`, { emoji }).then((r) => r.data);
 }
 
 export function updateCreativeComment(commentId, texto) {
@@ -343,6 +347,11 @@ export function deleteCampanha(id) {
 // mudanca de status e exclusao, manual ou automatica.
 export function getCampanhaActionLog(campanhaId) {
   return api.get(`/campanhas/${campanhaId}/action-log`).then((r) => r.data);
+}
+
+// Historico global, so de campanhas (sem criativos) -- tela geral de Campanhas.
+export function getCampanhasActionLogGlobal() {
+  return api.get("/campanhas/action-log").then((r) => r.data);
 }
 
 // GA4: vincula o Property ID de uma propriedade GA4 a uma campanha (usado para

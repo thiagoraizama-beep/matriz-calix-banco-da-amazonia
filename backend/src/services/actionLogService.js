@@ -101,3 +101,22 @@ export async function listarAcoesPorCampanha(campanhaId) {
   );
   return rows;
 }
+
+// Historico global (todas as campanhas), so acoes de entidade_tipo='campanha'
+// -- criacao, edicao, mudanca de status e exclusao de campanhas, sem misturar
+// acoes de criativos. Usado na tela geral de Campanhas (fora de uma campanha
+// especifica); a rota que chama isto ja restringe a usuarios agencia.
+// Limite de seguranca (nao paginado, igual ao Kanban de campanhas).
+const LIMITE_HISTORICO_GLOBAL = 500;
+
+export async function listarAcoesDeCampanhas() {
+  const { rows } = await query(
+    `SELECT a.*, u.nome AS alterado_por_nome
+     FROM action_log a
+     LEFT JOIN users u ON u.id = a.alterado_por
+     WHERE a.entidade_tipo = 'campanha'
+     ORDER BY a.criado_em DESC
+     LIMIT ${LIMITE_HISTORICO_GLOBAL}`
+  );
+  return rows;
+}

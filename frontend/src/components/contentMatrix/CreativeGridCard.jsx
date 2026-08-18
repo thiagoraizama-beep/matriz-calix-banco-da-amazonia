@@ -272,13 +272,13 @@ export default function CreativeGridCard({
 
   return (
     <div
-      className="card"
+      className={`card${!selected && creative.status === "Aguardando implementação" ? " card-glow-aguardando" : ""}`}
       style={{
         padding: 0, overflow: "hidden", display: "flex", flexDirection: "column",
         border: selected
           ? "2px solid var(--accent)"
           : creative.status === "Aguardando implementação"
-          ? "2px solid #39ff8a"
+          ? "2px solid transparent"
           : urgenciaLabel
           ? "2px solid #c77f1a"
           : "2px solid transparent",

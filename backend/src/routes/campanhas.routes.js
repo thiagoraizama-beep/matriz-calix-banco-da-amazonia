@@ -17,7 +17,7 @@ import {
   deleteCampanhaSheet,
 } from "../services/campanhasService.js";
 import { fetchSheetHeaders, invalidateCache } from "../services/sheetsClient.js";
-import { listarAcoesPorCampanha } from "../services/actionLogService.js";
+import { listarAcoesPorCampanha, listarAcoesDeCampanhas } from "../services/actionLogService.js";
 
 const router = Router();
 
@@ -171,6 +171,18 @@ router.delete("/:id", requireRole("agencia"), async (req, res, next) => {
     const deleted = await deleteCampanha(req.params.id, req.user.id);
     if (!deleted) return res.status(404).json({ error: "Campanha não encontrada" });
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Log de auditoria GLOBAL, so de campanhas (criacao, edicao, status, exclusao),
+// sem misturar acoes de criativos -- usado na tela geral de Campanhas, fora de
+// uma campanha especifica. Precisa vir antes de "/:campanhaId/action-log" senao
+// Express trataria "action-log" como um :campanhaId.
+router.get("/action-log", requireRole("agencia"), async (req, res, next) => {
+  try {
+    res.json(await listarAcoesDeCampanhas());
   } catch (err) {
     next(err);
   }

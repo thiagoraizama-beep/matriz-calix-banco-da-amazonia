@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getCampanhaActionLog } from "../../../api/client.js";
+import { getCampanhaActionLog, getCampanhasActionLogGlobal } from "../../../api/client.js";
 import Spinner from "../../common/Spinner.jsx";
 
 const ACAO_LABEL = {
@@ -50,15 +50,14 @@ function AcaoBadge({ acao }) {
   );
 }
 
-export default function ActionLogModal({ campanhaId, onClose }) {
+export default function ActionLogModal({ campanhaId, global = false, onClose }) {
   const [acoes, setAcoes] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getCampanhaActionLog(campanhaId)
-      .then(setAcoes)
-      .catch(() => setError("Não foi possível carregar o histórico."));
-  }, [campanhaId]);
+    const busca = global ? getCampanhasActionLogGlobal() : getCampanhaActionLog(campanhaId);
+    busca.then(setAcoes).catch(() => setError("Não foi possível carregar o histórico."));
+  }, [campanhaId, global]);
 
   return (
     <div

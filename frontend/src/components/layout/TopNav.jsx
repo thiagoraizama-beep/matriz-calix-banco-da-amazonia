@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogoutIcon } from "./navIcons.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
@@ -13,6 +13,9 @@ import MultiSelectDropdown from "./MultiSelectDropdown.jsx";
 import { papelLabel } from "../../utils/papelLabel.js";
 import { STATUS_LABEL, STATUS_OPTIONS } from "../../utils/campanhaStatus.js";
 import ActionLogModal from "../contentMatrix/AgencyView/ActionLogModal.jsx";
+import { getCreativesAImplementar } from "../../api/client.js";
+
+const A_IMPLEMENTAR_POLL_MS = 60_000;
 
 const STATUS_KEY_BY_LABEL = Object.fromEntries(STATUS_OPTIONS.map((key) => [STATUS_LABEL[key], key]));
 
@@ -76,6 +79,27 @@ function HistoryIcon() {
   );
 }
 
+function GridIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
+
+function KanbanIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="5" height="18" rx="1" />
+      <rect x="10" y="3" width="5" height="12" rx="1" />
+      <rect x="17" y="3" width="5" height="8" rx="1" />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -95,6 +119,25 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
   const matrixFilters = useMatrixFiltersContext();
   const campanhasFilters = useCampanhasHomeFiltersContext();
   const matrixLabel = user?.papel === "cliente" ? "Relatório de Criativos" : PAGES.MATRIZ_CONTEUDO;
+  const [totalAImplementar, setTotalAImplementar] = useState(0);
+  // Toggle Grade/Kanban no menu do usuario -- so aparece quando a tela ativa
+  // tem uma visualizacao alternativa (Matriz dentro de campanha, ou Home de
+  // Campanhas), usando o mesmo criterio das props que ja controlam os filtros.
+  const visualizacaoAtual = showMatrixFilters && matrixFilters
+    ? matrixFilters
+    : showCampanhasFilters && campanhasFilters
+    ? campanhasFilters
+    : null;
+
+  useEffect(() => {
+    if (user?.papel !== "agencia" && user?.papel !== "veiculo") return;
+    function carregar() {
+      getCreativesAImplementar().then((lista) => setTotalAImplementar(lista.length)).catch(() => {});
+    }
+    carregar();
+    const interval = setInterval(carregar, A_IMPLEMENTAR_POLL_MS);
+    return () => clearInterval(interval);
+  }, [user?.papel]);
 
   function handleNavigate(page) {
     onNavigate(page);
@@ -323,6 +366,7 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
             onClick={() => handleNavigate(PAGES.A_IMPLEMENTAR)}
             title={PAGES.A_IMPLEMENTAR}
             style={{
+              position: "relative",
               display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999,
               border: `1px solid ${activePage === PAGES.A_IMPLEMENTAR ? "var(--accent)" : "var(--border)"}`,
               background: activePage === PAGES.A_IMPLEMENTAR ? "var(--accent-soft)" : "transparent",
@@ -332,9 +376,20 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
           >
             <WarningIcon />
             A implementar
+            {totalAImplementar > 0 && (
+              <span
+                style={{
+                  position: "absolute", top: -6, right: -6, minWidth: 16, height: 16, borderRadius: "50%",
+                  background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px",
+                }}
+              >
+                {totalAImplementar}
+              </span>
+            )}
           </button>
         )}
-        {campanhaId && user?.papel === "agencia" && (
+        {(campanhaId || showCampanhasFilters) && user?.papel === "agencia" && (
           <button
             onClick={() => setActionLogAberto(true)}
             style={{
@@ -347,7 +402,13 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
             Histórico
           </button>
         )}
-        {actionLogAberto && <ActionLogModal campanhaId={campanhaId} onClose={() => setActionLogAberto(false)} />}
+        {actionLogAberto && (
+          <ActionLogModal
+            campanhaId={campanhaId}
+            global={!campanhaId && showCampanhasFilters}
+            onClose={() => setActionLogAberto(false)}
+          />
+        )}
         <NotificationBell variant="plain" />
 
         <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 6px" }} />
@@ -411,6 +472,21 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                   <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tema</span>
                   <ThemeToggle variant="plain" />
                 </div>
+                {visualizacaoAtual && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px 10px" }}>
+                    <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Visualização</span>
+                    <button
+                      onClick={() => visualizacaoAtual.setVisualizacao(visualizacaoAtual.visualizacao === "grade" ? "kanban" : "grade")}
+                      title={visualizacaoAtual.visualizacao === "grade" ? "Ver em Kanban" : "Ver em Grade"}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 999,
+                        border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer",
+                      }}
+                    >
+                      {visualizacaoAtual.visualizacao === "grade" ? <KanbanIcon /> : <GridIcon />}
+                    </button>
+                  </div>
+                )}
                 <button
                   onClick={() => handleNavigate(PAGES.PERFIL)}
                   style={{

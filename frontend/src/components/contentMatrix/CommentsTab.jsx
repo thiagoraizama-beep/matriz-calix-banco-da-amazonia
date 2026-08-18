@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   getMentionableUsers, getCreativeComments, postCreativeComment,
-  updateCreativeComment, deleteCreativeComment,
+  updateCreativeComment, deleteCreativeComment, toggleCommentReaction,
 } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
+
+const EMOJIS_RAPIDOS = ["👍", "❤️", "😂", "🎉", "👀", "✅"];
+const EMOJIS_COMPLETOS = [
+  "👍", "👎", "❤️", "🔥", "😂", "😮", "😢", "😡", "🎉", "👀",
+  "✅", "❌", "🙏", "💡", "⚠️", "🚀", "💯", "👏", "🤔", "😍",
+  "😅", "🙌", "😎", "🥳", "😴", "🤝", "⭐", "📌", "❓", "❗",
+];
 
 function formatDataHora(iso) {
   const d = new Date(iso);
@@ -21,7 +29,137 @@ function detectarMencaoEmAndamento(texto, cursorPos) {
   return { termo: match[1].toLowerCase(), inicio: match.index };
 }
 
-function CommentItem({ comment, isAutor, onEdit, onDelete }) {
+// Agrupa reacoes (uma linha por usuario+emoji) em { emoji: [usuario_nome,...] }
+// pra exibir contagem + tooltip com quem reagiu, sem duplicar o mesmo emoji.
+function agruparReacoes(reacoes) {
+  const grupos = {};
+  for (const r of reacoes || []) {
+    if (!grupos[r.emoji]) grupos[r.emoji] = [];
+    grupos[r.emoji].push(r);
+  }
+  return grupos;
+}
+
+// Picker renderizado via portal direto no <body> -- os comentarios ficam
+// dentro de um container com overflowY:auto (a lista rolavel), entao um
+// dropdown posicionado com position:absolute normal seria cortado pela borda
+// desse container. Calculamos a posicao em coordenadas de viewport (a partir
+// do botao que abriu) e desenhamos com position:fixed fora da arvore do card.
+function EmojiPicker({ anchorRect, emojis, expandivel, onExpandir, onEscolher, onFechar }) {
+  const popRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickFora(e) {
+      if (popRef.current && !popRef.current.contains(e.target)) onFechar();
+    }
+    document.addEventListener("mousedown", handleClickFora);
+    return () => document.removeEventListener("mousedown", handleClickFora);
+  }, [onFechar]);
+
+  if (!anchorRect) return null;
+
+  const largura = expandivel ? 220 : Math.min(emojis.length * 30 + 20, 260);
+  let left = anchorRect.left;
+  if (left + largura > window.innerWidth - 8) left = window.innerWidth - largura - 8;
+
+  return createPortal(
+    <div
+      ref={popRef}
+      style={{
+        position: "fixed", top: anchorRect.bottom + 4, left, width: largura, zIndex: 1000,
+        display: "flex", flexWrap: "wrap", gap: 4, padding: "8px", borderRadius: 8,
+        maxHeight: expandivel ? 180 : undefined, overflowY: expandivel ? "auto" : undefined,
+        background: "var(--card-bg)", border: "1px solid var(--border)", boxShadow: "0 8px 24px rgba(20,33,61,0.2)",
+      }}
+    >
+      {emojis.map((emoji) => (
+        <button
+          key={emoji}
+          onClick={() => onEscolher(emoji)}
+          style={{ fontSize: 18, background: "none", border: "none", cursor: "pointer", lineHeight: 1, padding: 4 }}
+        >
+          {emoji}
+        </button>
+      ))}
+      {!expandivel && onExpandir && (
+        <button
+          onClick={onExpandir}
+          title="Mais emojis"
+          style={{
+            fontSize: 13, fontWeight: 700, background: "var(--bg)", border: "1px solid var(--border)",
+            borderRadius: 6, cursor: "pointer", lineHeight: 1, padding: "4px 8px", color: "var(--text-secondary)",
+          }}
+        >
+          +
+        </button>
+      )}
+    </div>,
+    document.body
+  );
+}
+
+function ReactionBar({ comment, userId, onToggle }) {
+  const [pickerModo, setPickerModo] = useState(null); // null | "rapido" | "completo"
+  const [anchorRect, setAnchorRect] = useState(null);
+  const botaoRef = useRef(null);
+  const grupos = agruparReacoes(comment.reacoes);
+
+  function abrirPicker(modo) {
+    if (botaoRef.current) setAnchorRect(botaoRef.current.getBoundingClientRect());
+    setPickerModo(modo);
+  }
+
+  function escolher(emoji) {
+    onToggle(comment.id, emoji);
+    setPickerModo(null);
+  }
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginTop: 6 }}>
+      {Object.entries(grupos).map(([emoji, lista]) => {
+        const euReagi = lista.some((r) => r.usuario_id === userId);
+        return (
+          <button
+            key={emoji}
+            onClick={() => onToggle(comment.id, emoji)}
+            title={lista.map((r) => r.usuario_nome).join(", ")}
+            style={{
+              display: "flex", alignItems: "center", gap: 3, fontSize: 11.5, padding: "2px 7px", borderRadius: 999,
+              border: `1px solid ${euReagi ? "var(--accent)" : "var(--border)"}`,
+              background: euReagi ? "var(--accent-soft)" : "transparent",
+              cursor: "pointer",
+            }}
+          >
+            <span>{emoji}</span>
+            <span style={{ color: "var(--text-secondary)" }}>{lista.length}</span>
+          </button>
+        );
+      })}
+
+      <button
+        ref={botaoRef}
+        onClick={() => abrirPicker(pickerModo ? null : "rapido")}
+        title="Reagir"
+        style={{ fontSize: 12, padding: "2px 6px", borderRadius: 999, border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer" }}
+      >
+        +
+      </button>
+
+      {pickerModo && (
+        <EmojiPicker
+          anchorRect={anchorRect}
+          emojis={pickerModo === "completo" ? EMOJIS_COMPLETOS : EMOJIS_RAPIDOS}
+          expandivel={pickerModo === "completo"}
+          onExpandir={() => abrirPicker("completo")}
+          onEscolher={escolher}
+          onFechar={() => setPickerModo(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onResponder }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(comment.texto);
   const [salvando, setSalvando] = useState(false);
@@ -78,6 +216,17 @@ function CommentItem({ comment, isAutor, onEdit, onDelete }) {
         {formatDataHora(comment.criado_em)}
         {comment.editado_em && <span style={{ fontStyle: "italic" }}> · (editado)</span>}
       </p>
+
+      <ReactionBar comment={comment} userId={userId} onToggle={onReact} />
+
+      {onResponder && (
+        <button
+          onClick={() => onResponder(comment)}
+          style={{ marginTop: 4, background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, cursor: "pointer", padding: 0 }}
+        >
+          Responder
+        </button>
+      )}
     </div>
   );
 }
@@ -92,6 +241,7 @@ export default function CommentsTab({ creativeId }) {
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(null);
   const [sugestao, setSugestao] = useState(null); // { termo, inicio, opcoes }
+  const [respondendoA, setRespondendoA] = useState(null); // comentario "pai" em resposta
   const textareaRef = useRef(null);
 
   function load() {
@@ -124,6 +274,11 @@ export default function CommentsTab({ creativeId }) {
     textareaRef.current?.focus();
   }
 
+  function iniciarResposta(comment) {
+    setRespondendoA(comment);
+    textareaRef.current?.focus();
+  }
+
   async function handleEnviar(e) {
     e.preventDefault();
     if (!texto.trim()) return;
@@ -133,9 +288,10 @@ export default function CommentsTab({ creativeId }) {
       // So envia como mencionado quem realmente ainda aparece no texto (o
       // usuario pode ter apagado o "@Nome" depois de escolher na sugestao).
       const idsPresentes = mencionados.filter((m) => texto.includes(`@${m.nome}`)).map((m) => m.id);
-      await postCreativeComment(creativeId, { texto: texto.trim(), mencionadosIds: idsPresentes });
+      await postCreativeComment(creativeId, { texto: texto.trim(), mencionadosIds: idsPresentes, parentId: respondendoA?.id || null });
       setTexto("");
       setMencionados([]);
+      setRespondendoA(null);
       load();
     } catch (err) {
       setError(err.response?.data?.error || "Não foi possível enviar o comentário.");
@@ -155,27 +311,70 @@ export default function CommentsTab({ creativeId }) {
     load();
   }
 
+  async function handleReact(commentId, emoji) {
+    const reacoes = await toggleCommentReaction(commentId, emoji);
+    setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, reacoes } : c)));
+  }
+
+  // Organiza em topo-level + respostas agrupadas pelo parent_id, mantendo a
+  // ordem cronologica dentro de cada grupo (a lista ja vem ASC do backend).
+  const raiz = (comments || []).filter((c) => !c.parent_id);
+  const respostasPorPai = {};
+  for (const c of comments || []) {
+    if (c.parent_id) {
+      if (!respostasPorPai[c.parent_id]) respostasPorPai[c.parent_id] = [];
+      respostasPorPai[c.parent_id].push(c);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <strong style={{ fontSize: 13 }}>Comentários e observações</strong>
       {!comments ? (
         <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Carregando comentários...</p>
       ) : comments.length === 0 ? (
         <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Nenhum comentário ainda.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflowY: "auto" }}>
-          {comments.map((c) => (
-            <CommentItem
-              key={c.id}
-              comment={c}
-              isAutor={c.autor_id === user?.id}
-              onEdit={handleEditComment}
-              onDelete={setDeleting}
-            />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+          {raiz.map((c) => (
+            <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <CommentItem
+                comment={c}
+                isAutor={c.autor_id === user?.id}
+                onEdit={handleEditComment}
+                onDelete={setDeleting}
+                onReact={handleReact}
+                userId={user?.id}
+                onResponder={iniciarResposta}
+              />
+              {(respostasPorPai[c.id] || []).length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginLeft: 20, paddingLeft: 10, borderLeft: "2px solid var(--border)" }}>
+                  {respostasPorPai[c.id].map((r) => (
+                    <CommentItem
+                      key={r.id}
+                      comment={r}
+                      isAutor={r.autor_id === user?.id}
+                      onEdit={handleEditComment}
+                      onDelete={setDeleting}
+                      onReact={handleReact}
+                      userId={user?.id}
+                      onResponder={iniciarResposta}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
 
       <form onSubmit={handleEnviar} style={{ position: "relative" }}>
+        {respondendoA && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 6, padding: "4px 8px", background: "var(--accent-soft)", borderRadius: 6 }}>
+            <span>Respondendo a <strong>{respondendoA.autor_nome}</strong></span>
+            <button type="button" onClick={() => setRespondendoA(null)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={texto}
@@ -219,7 +418,7 @@ export default function CommentsTab({ creativeId }) {
               opacity: enviando || !texto.trim() ? 0.6 : 1,
             }}
           >
-            {enviando ? "Enviando..." : "Comentar"}
+            {enviando ? "Enviando..." : respondendoA ? "Responder" : "Comentar"}
           </button>
         </div>
       </form>
