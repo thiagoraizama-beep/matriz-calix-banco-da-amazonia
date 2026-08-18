@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import StatusBadge from "./statusBadge.jsx";
 import CreativeEvolutionChart from "../creative/CreativeEvolutionChart.jsx";
 import Spinner from "../common/Spinner.jsx";
+import CommentsTab from "./CommentsTab.jsx";
 import { getCreativeByAdName } from "../../api/client.js";
 
 const EMPTY_FILTERS = {};
@@ -52,16 +53,19 @@ function KpiCard({ bg, color, value, label }) {
 const TABS = [
   { id: "implementacao", label: "Implementação" },
   { id: "performance", label: "Performance" },
+  { id: "comentarios", label: "Comentários" },
 ];
 
-// Modal unico de detalhe, dividido em 2 abas: "Implementacao" (cadastro, sempre
-// instantaneo, vem do proprio objeto creative) e "Performance" (metricas completas
+// Modal unico de detalhe, dividido em 3 abas: "Implementacao" (cadastro, sempre
+// instantaneo, vem do proprio objeto creative), "Performance" (metricas completas
 // -- Investimento/Impressoes/Cliques/CTR + Sessoes/Leads do GA4 + grafico -- buscada
-// sob demanda so quando essa aba e aberta pela primeira vez, casando pelo Ad Name).
-export default function CreativeFusedDetailModal({ creative, campanhaId, onClose }) {
+// sob demanda so quando essa aba e aberta pela primeira vez, casando pelo Ad Name)
+// e "Comentarios" (com @mencao, ver CommentsTab.jsx). abaInicial permite abrir
+// o modal ja na aba certa (ex: clicar numa notificacao de mencao no sino).
+export default function CreativeFusedDetailModal({ creative, campanhaId, onClose, abaInicial = "implementacao" }) {
   const periodo = formatPeriodo(creative.periodo_inicio, creative.periodo_fim);
   const [copied, setCopied] = useState(false);
-  const [aba, setAba] = useState("implementacao");
+  const [aba, setAba] = useState(abaInicial);
 
   // Seção de Performance so e ocultada por completo quando o vinculo nao tem a
   // permissao (acesso_analise_criativo) -- sem ad_name ou sem match ainda, a aba
@@ -165,6 +169,12 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
               <Field label="Ad Group" value={creative.conjunto} />
               <Field label="Ad Name" value={creative.ad_name} />
               <Field label="Tipo de publicação" value={creative.impulsionado === false ? "Dark Post" : "Impulsionado"} />
+              {creative.eh_performance && (
+                <Field
+                  label="Orçamento projetado"
+                  value={creative.orcamento_projetado ? Number(creative.orcamento_projetado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : null}
+                />
+              )}
             </div>
 
             <Field label="Descrição" value={creative.descricao} />
@@ -276,6 +286,8 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
             )}
           </div>
         )}
+
+        {aba === "comentarios" && <CommentsTab creativeId={creative.id} />}
 
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
