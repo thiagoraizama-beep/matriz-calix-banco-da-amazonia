@@ -61,7 +61,7 @@ async function buscarCreativosElegiveis(campanhaId) {
     const { rows } = await query(
       `SELECT cr.* FROM creatives cr
        LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
-       WHERE cr.status = ANY($1) AND cr.ad_name IS NOT NULL AND cr.ad_name <> ''
+       WHERE cr.status = ANY($1) AND cr.ad_name IS NOT NULL AND cr.ad_name <> '' AND cr.excluido_em IS NULL
          AND (cv.campanha_id = $2
               OR (cr.campanha_veiculo_id IS NULL AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $2)))`,
       [STATUSES_ELEGIVEIS, campanhaId]
@@ -74,7 +74,7 @@ async function buscarCreativosElegiveis(campanhaId) {
     `SELECT cr.* FROM creatives cr
      LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
      LEFT JOIN campanhas c ON c.id = cv.campanha_id
-     WHERE cr.status = ANY($1) AND cr.ad_name IS NOT NULL AND cr.ad_name <> ''
+     WHERE cr.status = ANY($1) AND cr.ad_name IS NOT NULL AND cr.ad_name <> '' AND cr.excluido_em IS NULL
        AND (c.status IS NULL OR c.status NOT IN ('finalizado', 'cancelado'))`,
     [STATUSES_ELEGIVEIS]
   );
@@ -88,7 +88,7 @@ async function buscarCreativosElegiveis(campanhaId) {
 // nao criativos.
 async function idsCampanhasAtivas() {
   const { rows } = await query(
-    `SELECT id FROM campanhas WHERE status NOT IN ('finalizado', 'cancelado')`
+    `SELECT id FROM campanhas WHERE status NOT IN ('finalizado', 'cancelado') AND excluido_em IS NULL`
   );
   return rows.map((r) => r.id);
 }

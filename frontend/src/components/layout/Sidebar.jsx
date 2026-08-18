@@ -18,6 +18,7 @@ export const PAGES = {
   MATRIZ_CONTEUDO: "Matriz de Conteúdo",
   A_IMPLEMENTAR: "A implementar",
   PERFIL: "Perfil",
+  ADMIN: "Visão do Administrador",
 };
 
 // Rotulo exibido no rodape da sidebar em vez do nome cru do papel do usuario.

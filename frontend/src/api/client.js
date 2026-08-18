@@ -182,6 +182,12 @@ export function updateUserRoleAccount(id, payload) {
   return api.put(`/auth/users/${id}/role`, payload).then((r) => r.data);
 }
 
+// Promove/despromove administrador (acesso a Visao do Administrador) -- so
+// outro admin pode conceder essa permissao.
+export function setUserAdminAccount(id, isAdmin) {
+  return api.put(`/auth/users/${id}/admin`, { isAdmin }).then((r) => r.data);
+}
+
 export function updateUserAccount(id, payload) {
   return api.put(`/auth/users/${id}`, payload).then((r) => r.data);
 }
@@ -447,4 +453,39 @@ export function updateVehicle(id, formData) {
 
 export function deleteVehicle(id) {
   return api.delete(`/vehicles/${id}`).then((r) => r.data);
+}
+
+// Lixeira: restrita a usuarios agencia com is_admin=true (ver requireAdmin no backend).
+export function getLixeiraCreatives() {
+  return api.get("/lixeira/creatives").then((r) => r.data);
+}
+
+export function getLixeiraCampanhas() {
+  return api.get("/lixeira/campanhas").then((r) => r.data);
+}
+
+export function restaurarCreativeLixeira(id) {
+  return api.post(`/lixeira/creatives/${id}/restaurar`).then((r) => r.data);
+}
+
+export function restaurarCampanhaLixeira(id) {
+  return api.post(`/lixeira/campanhas/${id}/restaurar`).then((r) => r.data);
+}
+
+export function excluirCreativeDefinitivo(id) {
+  return api.delete(`/lixeira/creatives/${id}`).then((r) => r.data);
+}
+
+export function excluirCampanhaDefinitiva(id) {
+  return api.delete(`/lixeira/campanhas/${id}`).then((r) => r.data);
+}
+
+// Historico admin-only: acoes de restaurar/excluir definitivo (Lixeira) e de
+// criacao/exclusao de contas de usuario -- nao aparecem no ActionLogModal comum.
+export function getLixeiraHistorico() {
+  return api.get("/lixeira/historico").then((r) => r.data);
+}
+
+export function getUsuariosHistorico() {
+  return api.get("/lixeira/usuarios/historico").then((r) => r.data);
 }

@@ -21,6 +21,7 @@ import ContentMatrixPage from "./pages/ContentMatrixPage.jsx";
 import CampanhasHomePage from "./pages/CampanhasHomePage.jsx";
 import CriativosAImplementarPage from "./pages/CriativosAImplementarPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
+import AdminPage from "./pages/AdminPage.jsx";
 import PageLoader from "./components/common/PageLoader.jsx";
 import Footer from "./components/layout/Footer.jsx";
 import MobileTopBar from "./components/layout/MobileTopBar.jsx";
@@ -37,12 +38,14 @@ const PAGE_PATHS = {
   [PAGES.MATRIZ_CONTEUDO]: "/matriz-de-conteudo",
   [PAGES.A_IMPLEMENTAR]: "/a-implementar",
   [PAGES.PERFIL]: "/perfil",
+  [PAGES.ADMIN]: "/admin",
 };
 
 function pageFromPath(pathname) {
   if (pathname.startsWith("/matriz-de-conteudo")) return PAGES.MATRIZ_CONTEUDO;
   if (pathname.startsWith("/a-implementar")) return PAGES.A_IMPLEMENTAR;
   if (pathname.startsWith("/perfil")) return PAGES.PERFIL;
+  if (pathname.startsWith("/admin")) return PAGES.ADMIN;
   return PAGES.MATRIZ_CONTEUDO;
 }
 
@@ -205,6 +208,7 @@ function AppShell({
             <Route path="matriz-de-conteudo/:campanhaId" element={<MatrizDrillIn campanhas={campanhas} />} />
             <Route path="a-implementar" element={<CriativosAImplementarPage />} />
             <Route path="perfil" element={<ProfilePage />} />
+            <Route path="admin" element={user?.isAdmin === true ? <AdminPage /> : <Navigate to="/matriz-de-conteudo" replace />} />
             <Route path="*" element={<Navigate to="/matriz-de-conteudo" replace />} />
           </Routes>
         </div>

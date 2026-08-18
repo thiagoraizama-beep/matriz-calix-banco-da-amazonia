@@ -82,7 +82,7 @@ const TABS = [
 // sob demanda so quando essa aba e aberta pela primeira vez, casando pelo Ad Name)
 // e "Comentarios" (com @mencao, ver CommentsTab.jsx). abaInicial permite abrir
 // o modal ja na aba certa (ex: clicar numa notificacao de mencao no sino).
-export default function CreativeFusedDetailModal({ creative, campanhaId, onClose, abaInicial = "implementacao" }) {
+export default function CreativeFusedDetailModal({ creative, campanhaId, onClose, abaInicial = "implementacao", comentariosSomenteLeitura = false }) {
   const periodo = formatPeriodo(creative.periodo_inicio, creative.periodo_fim);
   const [copied, setCopied] = useState(false);
   const [aba, setAba] = useState(abaInicial);
@@ -321,7 +321,7 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
             </div>
           )}
 
-          {aba === "comentarios" && <CommentsTab creativeId={creative.id} />}
+          {aba === "comentarios" && <CommentsTab creativeId={creative.id} somenteLeitura={comentariosSomenteLeitura} />}
         </div>
       </div>
     </div>

@@ -13,7 +13,7 @@ import { useCampanhasHomeFiltersContext } from "../../context/CampanhasHomeFilte
 import MultiSelectDropdown from "./MultiSelectDropdown.jsx";
 import { papelLabel } from "../../utils/papelLabel.js";
 import { STATUS_LABEL, STATUS_OPTIONS } from "../../utils/campanhaStatus.js";
-import ActionLogModal from "../contentMatrix/AgencyView/ActionLogModal.jsx";
+import HistoricoDrawer from "../contentMatrix/AgencyView/HistoricoDrawer.jsx";
 import RascunhosModal from "../contentMatrix/AgencyView/RascunhosModal.jsx";
 import { getCreativesAImplementar, getMeusRascunhos } from "../../api/client.js";
 
@@ -127,6 +127,15 @@ function DraftIcon() {
       <path d="M14 2v6h6" />
       <line x1="8" y1="13" x2="16" y2="13" />
       <line x1="8" y1="17" x2="13" y2="17" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z" />
+      <path d="M9 12l2 2 4-4" />
     </svg>
   );
 }
@@ -419,23 +428,11 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
             )}
           </button>
         )}
-        {(campanhaId || showCampanhasFilters) && user?.papel === "agencia" && (
-          <button
-            onClick={() => setActionLogAberto(true)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999,
-              border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)",
-              fontSize: 13, fontWeight: 600, cursor: "pointer", marginRight: 6,
-            }}
-          >
-            <HistoryIcon />
-            Histórico
-          </button>
-        )}
         {actionLogAberto && (
-          <ActionLogModal
+          <HistoricoDrawer
             campanhaId={campanhaId}
             global={!campanhaId && showCampanhasFilters}
+            isAdmin={user?.isAdmin === true}
             onClose={() => setActionLogAberto(false)}
           />
         )}
@@ -534,6 +531,21 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
 
                 <div style={{ height: 1, background: "var(--border)", margin: "8px 0" }} />
 
+                {(campanhaId || showCampanhasFilters) && user?.papel === "agencia" && (
+                  <button
+                    onClick={() => { setActionLogAberto(true); setMenuOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", width: "100%", gap: 8,
+                      padding: "9px 10px", borderRadius: 8, border: "1px solid var(--accent)",
+                      background: "var(--accent-soft)", color: "var(--accent)",
+                      fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left", marginBottom: 4,
+                    }}
+                  >
+                    <HistoryIcon />
+                    Histórico
+                  </button>
+                )}
+
                 {user?.papel === "agencia" && (
                   <button
                     onClick={() => { setRascunhosAberto(true); setMenuOpen(false); }}
@@ -552,6 +564,21 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                         {totalRascunhos}
                       </span>
                     )}
+                  </button>
+                )}
+                {user?.isAdmin === true && (
+                  <button
+                    onClick={() => handleNavigate(PAGES.ADMIN)}
+                    style={{
+                      display: "flex", alignItems: "center", width: "100%", gap: 8,
+                      padding: "9px 10px", borderRadius: 8, border: "none",
+                      background: activePage === PAGES.ADMIN ? "var(--accent-soft)" : "transparent",
+                      color: activePage === PAGES.ADMIN ? "var(--accent)" : "var(--text-primary)",
+                      fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left",
+                    }}
+                  >
+                    <ShieldIcon />
+                    Visão do Administrador
                   </button>
                 )}
                 <button

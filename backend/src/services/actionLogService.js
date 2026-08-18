@@ -36,7 +36,11 @@ export async function registrarAcao({
   alteradoPor = null,
   origem = "manual",
 }) {
-  if (!campanhaId) return; // sem campanha resolvida, nao ha onde listar esta acao
+  // Criativo/campanha precisam de uma campanha resolvida para aparecer em algum
+  // historico (por campanha ou global de campanhas) -- sem isso, nao ha onde
+  // listar a acao, entao nem grava. Usuario nao pertence a campanha nenhuma, seu
+  // historico e proprio (ver listarAcoesDeUsuarios) e usa campanha_id NULL.
+  if (!campanhaId && entidadeTipo !== "usuario") return;
   await query(
     `INSERT INTO action_log
       (entidade_tipo, entidade_id, entidade_nome, campanha_id, acao, campo, valor_anterior, valor_novo, alterado_por, origem)
@@ -90,12 +94,14 @@ export async function registrarEdicaoCampos({
 // Lista completa (sem paginacao) do log de uma campanha, mais recente primeiro.
 // LEFT JOIN (nao INNER) para nao esconder acoes automaticas, onde alterado_por
 // e NULL -- mesmo problema que existia em getStatusHistory (creativesService.js).
+// Exclui acoes de Lixeira: essas sao admin-only (ver listarAcoesLixeira) e nao
+// devem vazar pro historico comum que qualquer agencia ja ve hoje.
 export async function listarAcoesPorCampanha(campanhaId) {
   const { rows } = await query(
     `SELECT a.*, u.nome AS alterado_por_nome
      FROM action_log a
      LEFT JOIN users u ON u.id = a.alterado_por
-     WHERE a.campanha_id = $1
+     WHERE a.campanha_id = $1 AND a.acao NOT IN ('restauracao', 'exclusao_definitiva')
      ORDER BY a.criado_em DESC`,
     [campanhaId]
   );
@@ -114,7 +120,37 @@ export async function listarAcoesDeCampanhas() {
     `SELECT a.*, u.nome AS alterado_por_nome
      FROM action_log a
      LEFT JOIN users u ON u.id = a.alterado_por
-     WHERE a.entidade_tipo = 'campanha'
+     WHERE a.entidade_tipo = 'campanha' AND a.acao NOT IN ('restauracao', 'exclusao_definitiva')
+     ORDER BY a.criado_em DESC
+     LIMIT ${LIMITE_HISTORICO_GLOBAL}`
+  );
+  return rows;
+}
+
+// Historico da Lixeira (restaurar/excluir definitivo de criativos e campanhas),
+// admin-only -- ver requireAdmin nas rotas de /api/lixeira. Sem paginacao, mesmo
+// limite de seguranca do historico global de campanhas.
+export async function listarAcoesLixeira() {
+  const { rows } = await query(
+    `SELECT a.*, u.nome AS alterado_por_nome
+     FROM action_log a
+     LEFT JOIN users u ON u.id = a.alterado_por
+     WHERE a.acao IN ('restauracao', 'exclusao_definitiva')
+     ORDER BY a.criado_em DESC
+     LIMIT ${LIMITE_HISTORICO_GLOBAL}`
+  );
+  return rows;
+}
+
+// Historico de gestao de usuarios (criacao/exclusao de contas), admin-only.
+// entidade_tipo='usuario' nunca tem campanha_id (ver guarda em registrarAcao),
+// entao nao precisa (nem pode) filtrar por campanha aqui.
+export async function listarAcoesDeUsuarios() {
+  const { rows } = await query(
+    `SELECT a.*, u.nome AS alterado_por_nome
+     FROM action_log a
+     LEFT JOIN users u ON u.id = a.alterado_por
+     WHERE a.entidade_tipo = 'usuario'
      ORDER BY a.criado_em DESC
      LIMIT ${LIMITE_HISTORICO_GLOBAL}`
   );

@@ -27,4 +27,14 @@ export function requireRole(...papeis) {
   };
 }
 
+// Lixeira: restrito a usuarios 'agencia' com a flag extra is_admin -- nao e um
+// papel novo, continua 'agencia' para tudo mais no sistema (requireRole("agencia")
+// segue valendo em paralelo onde ja era usado).
+export function requireAdmin(req, res, next) {
+  if (!req.user || req.user.papel !== "agencia" || req.user.isAdmin !== true) {
+    return res.status(403).json({ error: "Acesso restrito a administradores" });
+  }
+  next();
+}
+
 export const COOKIE_NAME_EXPORT = COOKIE_NAME;

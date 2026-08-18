@@ -25,7 +25,7 @@ function toPublicCampanha(row) {
 // Retorna campanhas com os veículos, plataformas e metas de contratado vinculados
 export async function listCampanhas() {
   const { rows: campanhas } = await query(
-    "SELECT * FROM campanhas ORDER BY nome ASC"
+    "SELECT * FROM campanhas WHERE excluido_em IS NULL ORDER BY nome ASC"
   );
 
   const { rows: vinculos } = await query(`
@@ -88,7 +88,7 @@ async function contagensPorCampanha(campanhaIds) {
   const { rows: criativosRows } = await query(
     `SELECT cv.campanha_id, COUNT(cr.id)::int AS total
      FROM campanha_veiculos cv
-     LEFT JOIN creatives cr ON cr.campanha_veiculo_id = cv.id
+     LEFT JOIN creatives cr ON cr.campanha_veiculo_id = cv.id AND cr.excluido_em IS NULL
      WHERE cv.campanha_id = ANY($1)
      GROUP BY cv.campanha_id`,
     [campanhaIds]
@@ -104,7 +104,7 @@ export async function listCampanhasHome(user, { busca = "", status = "", page = 
 
   if (user.papel !== "veiculo" && user.papel !== "parceiro") {
     const params = [];
-    const where = [];
+    const where = ["excluido_em IS NULL"];
     if (busca) {
       params.push(`%${busca}%`);
       where.push(`nome ILIKE $${params.length}`);
@@ -113,7 +113,7 @@ export async function listCampanhasHome(user, { busca = "", status = "", page = 
       params.push(status);
       where.push(`status = $${params.length}`);
     }
-    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const whereSql = `WHERE ${where.join(" AND ")}`;
     const { rows } = await query(
       `SELECT *, COUNT(*) OVER() AS total_count FROM campanhas ${whereSql}
        ORDER BY nome ASC LIMIT ${pageSize} OFFSET ${offset}`,
@@ -172,7 +172,7 @@ const STATUS_FORA_DO_KANBAN = ["finalizado", "cancelado"];
 export async function listCampanhasKanban(user) {
   if (user.papel !== "veiculo" && user.papel !== "parceiro") {
     const { rows } = await query(
-      `SELECT * FROM campanhas WHERE status NOT IN ('finalizado', 'cancelado')
+      `SELECT * FROM campanhas WHERE status NOT IN ('finalizado', 'cancelado') AND excluido_em IS NULL
        ORDER BY nome ASC LIMIT ${LIMITE_KANBAN}`
     );
     const contagens = await contagensPorCampanha(rows.map((r) => r.id));
@@ -199,6 +199,9 @@ export async function listCampanhasKanban(user) {
   return items.map((c) => ({ ...c, ...(contagens.get(c.id) || { totalVeiculos: 0, totalCriativos: 0 }) }));
 }
 
+// Usado internamente por outras operacoes (restaurar, editar, exibir detalhe na
+// lixeira) -- de proposito SEM filtro de excluido_em, ja que tambem precisa achar
+// campanhas que estao na lixeira.
 export async function getCampanhaById(id) {
   const { rows } = await query("SELECT * FROM campanhas WHERE id = $1", [id]);
   return rows[0] ? toPublicCampanha(rows[0]) : null;
@@ -382,19 +385,81 @@ export async function updateCampanhaStatus(id, status, alteradoPor = null) {
   return campanha ? toPublicCampanha(campanha) : null;
 }
 
+// Manda a campanha pra lixeira (soft-delete) -- os vinculos (campanha_veiculos,
+// campanha_sheets) continuam intactos no banco, so deixam de ser visiveis atraves
+// da campanha nas listagens normais; o CASCADE de fato so roda na exclusao
+// definitiva (excluirCampanhaDefinitiva).
 export async function deleteCampanha(id, alteradoPor = null) {
   const campanha = await getCampanhaById(id);
-  if (campanha) {
+  if (!campanha || campanha.excluido_em) return false;
+
+  await registrarAcao({
+    entidadeTipo: "campanha",
+    entidadeId: campanha.id,
+    entidadeNome: campanha.nome,
+    campanhaId: campanha.id,
+    acao: "exclusao",
+    alteradoPor,
+  });
+
+  await query(
+    "UPDATE campanhas SET excluido_em = now(), excluido_por = $2 WHERE id = $1",
+    [id, alteradoPor]
+  );
+  return true;
+}
+
+// Lista campanhas na lixeira, com nome de quem excluiu para exibicao.
+export async function listLixeiraCampanhas() {
+  const { rows } = await query(
+    `SELECT c.*, u.nome AS excluido_por_nome
+     FROM campanhas c
+     LEFT JOIN users u ON u.id = c.excluido_por
+     WHERE c.excluido_em IS NOT NULL
+     ORDER BY c.excluido_em DESC`
+  );
+  return rows.map(toPublicCampanha);
+}
+
+export async function restaurarCampanha(id, alteradoPor = null) {
+  const { rows } = await query(
+    `UPDATE campanhas SET excluido_em = NULL, excluido_por = NULL WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  const restaurada = rows[0];
+  if (restaurada) {
+    await registrarAcao({
+      entidadeTipo: "campanha",
+      entidadeId: restaurada.id,
+      entidadeNome: restaurada.nome,
+      campanhaId: restaurada.id,
+      acao: "restauracao",
+      alteradoPor,
+    });
+  }
+  return restaurada ? toPublicCampanha(restaurada) : null;
+}
+
+// Exclusao definitiva (esvaziar lixeira): apaga a campanha de verdade, cascateando
+// para campanha_veiculos/campanha_sheets/campanha_veiculo_metas via ON DELETE
+// CASCADE ja definido no schema. Criativos vinculados NAO sao apagados em cascata
+// (campanha_veiculo_id usa ON DELETE SET NULL) -- se ainda existirem criativos
+// ativos vinculados, eles so perdem a referencia a campanha, permanecendo intactos.
+export async function excluirCampanhaDefinitiva(id, alteradoPor = null) {
+  const campanha = await getCampanhaById(id);
+  if (!campanha) return false;
+
+  const { rowCount } = await query("DELETE FROM campanhas WHERE id = $1", [id]);
+  if (rowCount > 0) {
     await registrarAcao({
       entidadeTipo: "campanha",
       entidadeId: campanha.id,
       entidadeNome: campanha.nome,
-      campanhaId: campanha.id,
-      acao: "exclusao",
+      campanhaId: null,
+      acao: "exclusao_definitiva",
       alteradoPor,
     });
   }
-  const { rowCount } = await query("DELETE FROM campanhas WHERE id = $1", [id]);
   return rowCount > 0;
 }
 

@@ -5,12 +5,22 @@ import {
   createUserAccount,
   deleteUserAccount,
   updateUserAccount,
+  setUserAdminAccount,
   getRegisteredVehicles,
 } from "../../api/client.js";
 import Avatar from "../common/Avatar.jsx";
 import TrashIcon from "../common/TrashIcon.jsx";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 import MultiSelectDropdown from "../layout/MultiSelectDropdown.jsx";
+
+function ShieldIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
 
 const PAPEL_LABELS = { agencia: "Agência", veiculo: "Veículo", cliente: "Cliente", parceiro: "Parceiro" };
 const PAPEL_OPTIONS = ["Agência", "Veículo", "Cliente"];
@@ -69,6 +79,12 @@ export default function UserManagement() {
                   {PAPEL_LABELS[u.papel] || u.papel}
                   {u.veiculos?.length > 0 && ` · ${u.veiculos.join(", ")}`}
                 </span>
+                {u.isAdmin && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent)", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                    <ShieldIcon size={11} />
+                    Admin
+                  </span>
+                )}
                 {u.id !== currentUser.id && (
                   <>
                     <button
@@ -96,6 +112,7 @@ export default function UserManagement() {
               {editingUser?.id === u.id && (
                 <UserForm
                   user={u}
+                  currentUser={currentUser}
                   onDone={() => { load(); setEditingUser(null); }}
                   onCancel={() => setEditingUser(null)}
                 />
@@ -117,19 +134,23 @@ export default function UserManagement() {
   );
 }
 
-function UserForm({ user, onDone, onCancel }) {
+function UserForm({ user, currentUser, onDone, onCancel }) {
   const isEdit = Boolean(user);
   const [nome, setNome] = useState(user?.nome || "");
   const [email, setEmail] = useState(user?.email || "");
   const [senha, setSenha] = useState("");
   const [papelLabel, setPapelLabel] = useState(PAPEL_LABELS[user?.papel] || "Cliente");
   const [veiculosSelecionados, setVeiculosSelecionados] = useState(user?.veiculos || []);
+  const [isAdmin, setIsAdmin] = useState(user?.isAdmin || false);
   const [vehicles, setVehicles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const papel = PAPEL_FROM_LABEL[papelLabel] || "cliente";
   const isVeiculo = papel === "veiculo";
+  // So outro admin pode conceder/revogar essa permissao, e so faz sentido pra
+  // 'agencia' -- veiculo/cliente nunca tem acesso a Visao do Administrador.
+  const podeGerenciarAdmin = isEdit && currentUser?.isAdmin && papel === "agencia" && user.id !== currentUser.id;
 
   useEffect(() => {
     getRegisteredVehicles().then(setVehicles).catch(console.error);
@@ -159,6 +180,12 @@ function UserForm({ user, onDone, onCancel }) {
 
       if (isEdit) {
         await updateUserAccount(user.id, payload);
+        // Permissao de admin e uma rota propria (nao faz parte do update
+        // generico do usuario) -- so dispara se o form tem a checkbox visivel
+        // e o valor de fato mudou, pra nao chamar a rota admin-only sem motivo.
+        if (podeGerenciarAdmin && isAdmin !== (user.isAdmin || false)) {
+          await setUserAdminAccount(user.id, isAdmin);
+        }
       } else {
         if (!senha) { setError("Senha obrigatória"); setSaving(false); return; }
         await createUserAccount({ ...payload, senha });
@@ -251,6 +278,16 @@ function UserForm({ user, onDone, onCancel }) {
             As campanhas e plataformas são configuradas na seção <strong>Campanhas</strong>.
           </p>
         </div>
+      )}
+
+      {podeGerenciarAdmin && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "8px 10px", borderRadius: 8, background: "var(--card-bg)" }}>
+          <input type="checkbox" checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)} />
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <ShieldIcon />
+            Administrador (acesso à Visão do Administrador e Lixeira)
+          </span>
+        </label>
       )}
 
       {error && <p style={{ color: "var(--danger)", fontSize: 13, margin: 0 }}>{error}</p>}

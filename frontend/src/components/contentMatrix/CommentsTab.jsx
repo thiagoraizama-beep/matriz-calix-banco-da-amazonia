@@ -160,7 +160,7 @@ function ReactionBar({ comment, userId, onToggle }) {
   );
 }
 
-function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onResponder, respondendoNomeDe }) {
+function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onResponder, respondendoNomeDe, somenteLeitura }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(comment.texto);
   const [salvando, setSalvando] = useState(false);
@@ -188,7 +188,7 @@ function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onRe
                 <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>respondendo a <strong>{respondendoNomeDe}</strong></span>
               )}
             </div>
-            {isAutor && !editando && (
+            {!somenteLeitura && isAutor && !editando && (
               <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                 <button onClick={() => setEditando(true)} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
                   Editar
@@ -227,7 +227,7 @@ function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onRe
             {formatDataHora(comment.criado_em)}
             {comment.editado_em && <span style={{ fontStyle: "italic" }}> · editado</span>}
           </span>
-          {onResponder && (
+          {!somenteLeitura && onResponder && (
             <button
               onClick={() => onResponder(comment)}
               style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}
@@ -237,15 +237,17 @@ function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onRe
           )}
         </div>
 
-        <div style={{ paddingLeft: 4 }}>
-          <ReactionBar comment={comment} userId={userId} onToggle={onReact} />
-        </div>
+        {!somenteLeitura && (
+          <div style={{ paddingLeft: 4 }}>
+            <ReactionBar comment={comment} userId={userId} onToggle={onReact} />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export default function CommentsTab({ creativeId }) {
+export default function CommentsTab({ creativeId, somenteLeitura = false }) {
   const { user } = useAuth();
   const [comments, setComments] = useState(null);
   const [mentionable, setMentionable] = useState([]);
@@ -264,8 +266,8 @@ export default function CommentsTab({ creativeId }) {
 
   useEffect(() => {
     load();
-    getMentionableUsers(creativeId).then(setMentionable).catch(() => setMentionable([]));
-  }, [creativeId]);
+    if (!somenteLeitura) getMentionableUsers(creativeId).then(setMentionable).catch(() => setMentionable([]));
+  }, [creativeId, somenteLeitura]);
 
   function handleTextoChange(e) {
     const novoTexto = e.target.value;
@@ -371,6 +373,7 @@ export default function CommentsTab({ creativeId }) {
                 onReact={handleReact}
                 userId={user?.id}
                 onResponder={iniciarResposta}
+                somenteLeitura={somenteLeitura}
               />
               {(respostasPorPai[c.id] || []).length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14, marginLeft: 20, paddingLeft: 14, borderLeft: "2px solid var(--border)" }}>
@@ -385,6 +388,7 @@ export default function CommentsTab({ creativeId }) {
                       userId={user?.id}
                       onResponder={iniciarResposta}
                       respondendoNomeDe={r.parent_id !== c.id ? porId[r.parent_id]?.autor_nome : null}
+                      somenteLeitura={somenteLeitura}
                     />
                   ))}
                 </div>
@@ -394,6 +398,7 @@ export default function CommentsTab({ creativeId }) {
         </div>
       )}
 
+      {!somenteLeitura && (
       <form onSubmit={handleEnviar} style={{ position: "relative", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
         {respondendoA && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11.5, color: "var(--accent)", marginBottom: 8, padding: "6px 10px", background: "var(--accent-soft)", borderRadius: 8 }}>
@@ -448,6 +453,7 @@ export default function CommentsTab({ creativeId }) {
           </button>
         </div>
       </form>
+      )}
 
       {deleting && (
         <ConfirmDialog

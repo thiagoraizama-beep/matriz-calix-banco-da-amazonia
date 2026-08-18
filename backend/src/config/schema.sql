@@ -445,3 +445,47 @@ CREATE INDEX IF NOT EXISTS idx_comment_mentions_usuario ON comment_mentions(usua
 -- qualquer comentario no que tem acesso, mesmo sem serem citados) -- usado so
 -- para o texto exibido no sino ("mencionou voce" vs "novo comentario").
 ALTER TABLE comment_mentions ADD COLUMN IF NOT EXISTS eh_mencao_direta BOOLEAN NOT NULL DEFAULT false;
+
+-- Lixeira: usuarios 'agencia' com is_admin=true podem ver/restaurar/excluir
+-- definitivamente itens da lixeira. Nao e um papel novo -- continua 'agencia'
+-- para tudo mais no sistema, so ganha essa permissao extra.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+
+-- Soft-delete de criativos e campanhas: excluido_em NULL = item ativo/visivel
+-- normalmente; preenchido = esta na lixeira, some das listagens normais mas
+-- continua no banco ate um admin restaurar ou excluir definitivamente (sem
+-- expiracao automatica). excluido_por registra quem mandou pra lixeira.
+ALTER TABLE creatives ADD COLUMN IF NOT EXISTS excluido_em TIMESTAMP;
+ALTER TABLE creatives ADD COLUMN IF NOT EXISTS excluido_por INTEGER REFERENCES users(id);
+ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS excluido_em TIMESTAMP;
+ALTER TABLE campanhas ADD COLUMN IF NOT EXISTS excluido_por INTEGER REFERENCES users(id);
+
+-- A UNIQUE simples em campanhas.nome colidiria com soft-delete: uma campanha
+-- na lixeira ainda ocuparia o nome, impedindo criar uma nova com o mesmo nome.
+-- Troca por indice unico parcial, que so considera campanhas ativas.
+ALTER TABLE campanhas DROP CONSTRAINT IF EXISTS campanhas_nome_key;
+CREATE UNIQUE INDEX IF NOT EXISTS campanhas_nome_ativo_unique ON campanhas (nome) WHERE excluido_em IS NULL;
+
+-- Permite registrar a acao de exclusao definitiva separada da exclusao (soft-delete)
+-- ja existente -- a de soft-delete continua logada como 'exclusao' no momento em
+-- que o item vai pra lixeira, preservando o rastro original.
+ALTER TABLE action_log DROP CONSTRAINT IF EXISTS action_log_acao_check;
+ALTER TABLE action_log ADD CONSTRAINT action_log_acao_check
+  CHECK (acao IN (
+    'criacao', 'edicao', 'status', 'exclusao', 'exclusao_definitiva', 'restauracao',
+    'promocao_admin', 'revogacao_admin'
+  ));
+
+-- Historico de gestao de usuarios (criacao/exclusao de contas), admin-only,
+-- reaproveitando a mesma tabela de auditoria. Usuario nao pertence a campanha
+-- nenhuma -- campanha_id fica NULL nesses registros (ver guarda em registrarAcao).
+-- A definicao original da coluna (mais acima neste arquivo) ja nao tem NOT NULL,
+-- mas isso so vale pra bancos criados do zero -- um banco existente que rodou o
+-- CREATE TABLE antes dessa mudanca manteve a constraint antiga (CREATE TABLE IF
+-- NOT EXISTS nao reaplica a definicao numa tabela que ja existe), entao precisa
+-- deste ALTER explicito pra relaxar de fato.
+ALTER TABLE action_log ALTER COLUMN campanha_id DROP NOT NULL;
+
+ALTER TABLE action_log DROP CONSTRAINT IF EXISTS action_log_entidade_tipo_check;
+ALTER TABLE action_log ADD CONSTRAINT action_log_entidade_tipo_check
+  CHECK (entidade_tipo IN ('criativo', 'campanha', 'usuario'));

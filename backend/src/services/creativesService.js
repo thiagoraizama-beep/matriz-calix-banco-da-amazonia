@@ -73,7 +73,7 @@ export async function listCreatives(user) {
       // (campanha_veiculo_id nulo) caem no fallback por string veiculo+campanha.
       const { rows } = await query(
         `SELECT * FROM creatives
-         WHERE status != 'Rascunho'
+         WHERE status != 'Rascunho' AND excluido_em IS NULL
            AND ((campanha_veiculo_id = ANY($1))
             OR (campanha_veiculo_id IS NULL AND veiculo = ANY($2) AND campanha = ANY($3)))
          ORDER BY criado_em DESC`,
@@ -83,7 +83,7 @@ export async function listCreatives(user) {
     }
     const { rows } = await query(
       `SELECT * FROM creatives
-       WHERE status != 'Rascunho'
+       WHERE status != 'Rascunho' AND excluido_em IS NULL
          AND ((campanha_veiculo_id = ANY($1))
           OR (campanha_veiculo_id IS NULL AND veiculo = ANY($2)))
        ORDER BY criado_em DESC`,
@@ -91,7 +91,7 @@ export async function listCreatives(user) {
     );
     return rows;
   }
-  const { rows } = await query("SELECT * FROM creatives WHERE status != 'Rascunho' ORDER BY criado_em DESC");
+  const { rows } = await query("SELECT * FROM creatives WHERE status != 'Rascunho' AND excluido_em IS NULL ORDER BY criado_em DESC");
   return rows;
 }
 
@@ -123,7 +123,7 @@ export async function listCreativesAImplementar(user) {
     if (campanhas) {
       const { rows } = await query(
         `${selectComCampanha}
-         WHERE cr.status = 'Aguardando implementação'
+         WHERE cr.status = 'Aguardando implementação' AND cr.excluido_em IS NULL
            AND ((cr.campanha_veiculo_id = ANY($1))
                 OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($2) AND cr.campanha = ANY($3)))
          ORDER BY cr.atualizado_em ASC`,
@@ -133,7 +133,7 @@ export async function listCreativesAImplementar(user) {
     }
     const { rows } = await query(
       `${selectComCampanha}
-       WHERE cr.status = 'Aguardando implementação'
+       WHERE cr.status = 'Aguardando implementação' AND cr.excluido_em IS NULL
          AND ((cr.campanha_veiculo_id = ANY($1))
               OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($2)))
        ORDER BY cr.atualizado_em ASC`,
@@ -144,7 +144,7 @@ export async function listCreativesAImplementar(user) {
 
   const { rows } = await query(
     `${selectComCampanha}
-     WHERE cr.status = 'Aguardando implementação'
+     WHERE cr.status = 'Aguardando implementação' AND cr.excluido_em IS NULL
      ORDER BY cr.atualizado_em ASC`
   );
   return rows;
@@ -172,7 +172,7 @@ export async function listCreativesComErro(user) {
     if (campanhas) {
       const { rows } = await query(
         `${selectComCampanha}
-         WHERE cr.status = 'Com erro'
+         WHERE cr.status = 'Com erro' AND cr.excluido_em IS NULL
            AND ((cr.campanha_veiculo_id = ANY($1))
                 OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($2) AND cr.campanha = ANY($3)))
          ORDER BY cr.atualizado_em DESC`,
@@ -182,7 +182,7 @@ export async function listCreativesComErro(user) {
     }
     const { rows } = await query(
       `${selectComCampanha}
-       WHERE cr.status = 'Com erro'
+       WHERE cr.status = 'Com erro' AND cr.excluido_em IS NULL
          AND ((cr.campanha_veiculo_id = ANY($1))
               OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($2)))
        ORDER BY cr.atualizado_em DESC`,
@@ -193,7 +193,7 @@ export async function listCreativesComErro(user) {
 
   const { rows } = await query(
     `${selectComCampanha}
-     WHERE cr.status = 'Com erro'
+     WHERE cr.status = 'Com erro' AND cr.excluido_em IS NULL
      ORDER BY cr.atualizado_em DESC`
   );
   return rows;
@@ -207,7 +207,7 @@ export async function listCreativesComErro(user) {
 // nunca e escolhivel via updateStatus -- STATUSES nao o inclui).
 export async function listMeusRascunhos(userId) {
   const { rows } = await query(
-    `SELECT * FROM creatives WHERE status = 'Rascunho' AND criado_por = $1 ORDER BY atualizado_em DESC`,
+    `SELECT * FROM creatives WHERE status = 'Rascunho' AND criado_por = $1 AND excluido_em IS NULL ORDER BY atualizado_em DESC`,
     [userId]
   );
   return rows;
@@ -231,7 +231,7 @@ export async function listCreativesByCampanha(user, campanhaId) {
       `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo
        FROM creatives cr
        LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
-       WHERE cr.status != 'Rascunho'
+       WHERE cr.status != 'Rascunho' AND cr.excluido_em IS NULL
          AND ((cr.campanha_veiculo_id = ANY($1) AND cv.campanha_id = $2)
           OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($3)
               AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $2)))
@@ -244,7 +244,7 @@ export async function listCreativesByCampanha(user, campanhaId) {
     `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo
      FROM creatives cr
      LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
-     WHERE cr.status != 'Rascunho'
+     WHERE cr.status != 'Rascunho' AND cr.excluido_em IS NULL
        AND (cv.campanha_id = $1
         OR (cr.campanha_veiculo_id IS NULL AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $1)))
      ORDER BY cr.criado_em DESC`,
@@ -290,11 +290,14 @@ export async function findCreativeByAdName(adName, plataforma, vendedor, formato
   const adNameMatch = "REGEXP_REPLACE(ad_name, '\\s+', ' ', 'g') = $1";
 
   return matchUnico(
-    `SELECT * FROM creatives WHERE ${adNameMatch} AND plataforma = $2 AND veiculo = $3 AND campanha = $4 AND $5 = ANY(tipos_compra) AND UPPER(formato) = UPPER($6)`,
+    `SELECT * FROM creatives WHERE ${adNameMatch} AND plataforma = $2 AND veiculo = $3 AND campanha = $4 AND $5 = ANY(tipos_compra) AND UPPER(formato) = UPPER($6) AND excluido_em IS NULL`,
     [normalized, plataforma, vendedor, campanha, modeloCompra, formato]
   );
 }
 
+// Usado internamente por outras operacoes (restaurar, editar, exibir detalhe na
+// lixeira) -- de proposito SEM filtro de excluido_em, ja que tambem precisa achar
+// itens que estao na lixeira.
 export async function getCreativeById(id) {
   const { rows } = await query("SELECT * FROM creatives WHERE id = $1", [id]);
   return rows[0] || null;
@@ -497,11 +500,14 @@ export async function updateCreative(id, {
   return creative;
 }
 
+// Manda o criativo pra lixeira (soft-delete) -- NAO apaga do Cloudinary aqui,
+// isso so acontece na exclusao definitiva (excluirCreativeDefinitivo), para o
+// arquivo continuar disponivel caso o item seja restaurado.
 export async function deleteCreative(id, alteradoPor = null) {
   const creative = await getCreativeById(id);
-  if (!creative) return false;
+  if (!creative || creative.excluido_em) return false;
 
-  // Resolve e grava o log ANTES do DELETE -- precisa do creative ainda existir
+  // Resolve e grava o log ANTES do UPDATE -- precisa do creative ainda "ativo"
   // para achar a campanha dona dele (campanha_veiculo_id) e capturar o nome.
   // Rascunho descartado nao entra no log, mesmo motivo da criacao (nunca foi
   // uma acao visivel pra agencia acompanhar).
@@ -517,15 +523,10 @@ export async function deleteCreative(id, alteradoPor = null) {
     });
   }
 
-  // Criativos "Impulsionado" podem nao ter arquivo (so link_postagem) -- nesse
-  // caso cloudinary_public_id fica null, entao nao ha nada a apagar no Cloudinary.
-  if (creative.cloudinary_public_id) {
-    const cloudinary = getCloudinaryClient();
-    await cloudinary.uploader.destroy(creative.cloudinary_public_id, {
-      resource_type: creative.tipo_midia === "video" ? "video" : "image",
-    });
-  }
-  await query("DELETE FROM creatives WHERE id = $1", [id]);
+  await query(
+    "UPDATE creatives SET excluido_em = now(), excluido_por = $2 WHERE id = $1",
+    [id, alteradoPor]
+  );
   return true;
 }
 
@@ -546,6 +547,76 @@ export async function deleteCreativesBulk(ids, alteradoPor = null) {
     }
   }
   return { excluidos, falharam };
+}
+
+// Lista os criativos na lixeira, com nome de quem excluiu para exibicao.
+// campanha_id_ref resolvido igual ao resto do sistema (campanha_veiculo_id ->
+// campanha_veiculos.campanha_id, com fallback pelo texto solto creatives.campanha
+// em criativos legados) -- necessario pro modal de detalhe completo (com aba de
+// Performance) na Lixeira, que precisa de campanhaId pra buscar dado por Ad Name.
+export async function listLixeiraCreatives() {
+  const { rows } = await query(
+    `SELECT cr.*, u.nome AS excluido_por_nome,
+            COALESCE(c.id, (SELECT id FROM campanhas WHERE nome = cr.campanha)) AS campanha_id_ref
+     FROM creatives cr
+     LEFT JOIN users u ON u.id = cr.excluido_por
+     LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
+     LEFT JOIN campanhas c ON c.id = cv.campanha_id
+     WHERE cr.excluido_em IS NOT NULL
+     ORDER BY cr.excluido_em DESC`
+  );
+  return rows;
+}
+
+export async function restaurarCreative(id, alteradoPor = null) {
+  const { rows } = await query(
+    `UPDATE creatives SET excluido_em = NULL, excluido_por = NULL WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  const restaurado = rows[0];
+  if (restaurado && restaurado.status !== "Rascunho") {
+    const campanhaIdLog = await resolveCampanhaIdDoCreative(restaurado);
+    await registrarAcao({
+      entidadeTipo: "criativo",
+      entidadeId: restaurado.id,
+      entidadeNome: restaurado.nome,
+      campanhaId: campanhaIdLog,
+      acao: "restauracao",
+      alteradoPor,
+    });
+  }
+  return restaurado || null;
+}
+
+// Exclusao definitiva (esvaziar lixeira): so aqui a midia e de fato apagada do
+// Cloudinary e a linha e removida do banco -- ate este momento o item continuava
+// recuperavel via restaurarCreative.
+export async function excluirCreativeDefinitivo(id, alteradoPor = null) {
+  const creative = await getCreativeById(id);
+  if (!creative) return false;
+
+  if (creative.cloudinary_public_id) {
+    const cloudinary = getCloudinaryClient();
+    await cloudinary.uploader.destroy(creative.cloudinary_public_id, {
+      resource_type: creative.tipo_midia === "video" ? "video" : "image",
+    });
+  }
+
+  await query("DELETE FROM creatives WHERE id = $1", [id]);
+
+  if (creative.status !== "Rascunho") {
+    const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+    await registrarAcao({
+      entidadeTipo: "criativo",
+      entidadeId: creative.id,
+      entidadeNome: creative.nome,
+      campanhaId: campanhaIdLog,
+      acao: "exclusao_definitiva",
+      alteradoPor,
+    });
+  }
+
+  return true;
 }
 
 export async function updateStatus(id, novoStatus, user) {

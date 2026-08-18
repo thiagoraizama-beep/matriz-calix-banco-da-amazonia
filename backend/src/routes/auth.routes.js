@@ -7,6 +7,7 @@ import {
   updateProfile,
   updateUser,
   updateUserRole,
+  setUserAdmin,
   changePassword,
   deactivateUser,
   getPublicAvatar,
@@ -14,7 +15,7 @@ import {
   validateResetToken,
   resetPasswordWithToken,
 } from "../services/authService.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireAdmin } from "../middleware/auth.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 
 const router = Router();
@@ -123,7 +124,7 @@ router.post("/users", requireAuth, requireRole("agencia"), async (req, res, next
     if (!email || !senha || !nome || !papel) {
       return res.status(400).json({ error: "Campos obrigatórios: email, senha, nome, papel" });
     }
-    const user = await createUser({ email, senha, nome, papel, veiculos, parceiroId });
+    const user = await createUser({ email, senha, nome, papel, veiculos, parceiroId }, req.user.id);
     res.status(201).json(user);
   } catch (err) {
     if (err.code === "23505") {
@@ -202,12 +203,30 @@ router.put("/users/:id/role", requireAuth, requireRole("agencia"), async (req, r
   }
 });
 
+// Promover/despromover administrador -- so quem ja e admin pode conceder essa
+// permissao a outro usuario 'agencia' (requireAdmin), evita que um usuario
+// agencia comum se autopromova via chamada direta a API.
+router.put("/users/:id/admin", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { isAdmin } = req.body;
+    if (typeof isAdmin !== "boolean") return res.status(400).json({ error: "Campo obrigatório: isAdmin (booleano)" });
+    if (Number(req.params.id) === req.user.id) {
+      return res.status(400).json({ error: "Você não pode alterar sua própria permissão de administrador" });
+    }
+    const updated = await setUserAdmin(req.params.id, isAdmin, req.user.id);
+    if (!updated) return res.status(404).json({ error: "Usuário não encontrado" });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete("/users/:id", requireAuth, requireRole("agencia"), async (req, res, next) => {
   try {
     if (Number(req.params.id) === req.user.id) {
       return res.status(400).json({ error: "Você não pode excluir sua própria conta" });
     }
-    const deactivated = await deactivateUser(req.params.id);
+    const deactivated = await deactivateUser(req.params.id, req.user.id);
     if (!deactivated) return res.status(404).json({ error: "Usuário não encontrado" });
     res.status(204).end();
   } catch (err) {

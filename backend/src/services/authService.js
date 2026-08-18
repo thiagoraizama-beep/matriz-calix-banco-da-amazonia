@@ -6,6 +6,7 @@ import { getCanaisPermitidos } from "./parceirosService.js";
 import { getEscoposUsuario } from "./campanhasService.js";
 import { tiposMidiaPermitidos } from "../utils/scopeFilter.js";
 import { sendPasswordResetEmail } from "./emailService.js";
+import { registrarAcao } from "./actionLogService.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const TOKEN_TTL = "7d";
@@ -22,6 +23,9 @@ function toPublicUser(row, escopos = null) {
     parceiroId: row.parceiro_id || null,
     escopos: escopos || null,
     fotoUrl: row.foto_url,
+    // Permissao extra dentro do papel 'agencia' (nao e um papel novo) para
+    // acessar a Lixeira -- ver/restaurar/excluir definitivamente itens excluidos.
+    isAdmin: row.is_admin === true,
   };
   base.tiposMidia = tiposMidiaPermitidos(base);
   return base;
@@ -76,7 +80,7 @@ export function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-export async function createUser({ email, senha, nome, papel, veiculos, parceiroId }) {
+export async function createUser({ email, senha, nome, papel, veiculos, parceiroId }, criadoPor = null) {
   const passwordHash = await bcrypt.hash(senha, 10);
 
   const { rows: existentes } = await query("SELECT id FROM users WHERE email = $1 AND ativo = false", [email]);
@@ -94,6 +98,14 @@ export async function createUser({ email, senha, nome, papel, veiculos, parceiro
        RETURNING *`,
       [existentes[0].id, passwordHash, nome, papel, veiculos || [], parceiroId || null]
     );
+    await registrarAcao({
+      entidadeTipo: "usuario",
+      entidadeId: rows[0].id,
+      entidadeNome: rows[0].nome,
+      campanhaId: null,
+      acao: "criacao",
+      alteradoPor: criadoPor,
+    });
     const escopos = await resolveEscopos(rows[0]);
     return toPublicUser(rows[0], escopos);
   }
@@ -104,6 +116,14 @@ export async function createUser({ email, senha, nome, papel, veiculos, parceiro
      RETURNING *`,
     [email, passwordHash, nome, papel, veiculos || [], parceiroId || null]
   );
+  await registrarAcao({
+    entidadeTipo: "usuario",
+    entidadeId: rows[0].id,
+    entidadeNome: rows[0].nome,
+    campanhaId: null,
+    acao: "criacao",
+    alteradoPor: criadoPor,
+  });
   const escopos = await resolveEscopos(rows[0]);
   return toPublicUser(rows[0], escopos);
 }
@@ -161,10 +181,46 @@ export async function updateUserRole(id, { papel, veiculos, parceiroId }) {
   return toPublicUser(rows[0], escopos);
 }
 
+// Promove/despromove um usuario de papel 'agencia' a administrador (acesso a
+// Visao do Administrador -- Lixeira e historico admin-only). So faz sentido
+// pra 'agencia': a rota que chama isto ja garante isso, aqui so troca a flag.
+export async function setUserAdmin(id, isAdmin, alteradoPor = null) {
+  const { rows } = await query(
+    "UPDATE users SET is_admin = $2 WHERE id = $1 AND ativo = true RETURNING *",
+    [id, isAdmin]
+  );
+  const alvo = rows[0];
+  if (!alvo) return null;
+  await registrarAcao({
+    entidadeTipo: "usuario",
+    entidadeId: alvo.id,
+    entidadeNome: alvo.nome,
+    campanhaId: null,
+    acao: isAdmin ? "promocao_admin" : "revogacao_admin",
+    alteradoPor,
+  });
+  const escopos = await resolveEscopos(alvo);
+  return toPublicUser(alvo, escopos);
+}
+
 // Desativa em vez de excluir de fato, para preservar o historico
 // (criativos/status apontam para o usuario via foreign key).
-export async function deactivateUser(id) {
+export async function deactivateUser(id, excluidoPor = null) {
+  const { rows } = await query("SELECT id, nome FROM users WHERE id = $1", [id]);
+  const alvo = rows[0];
+  if (!alvo) return false;
+
   const { rowCount } = await query("UPDATE users SET ativo = false WHERE id = $1", [id]);
+  if (rowCount > 0) {
+    await registrarAcao({
+      entidadeTipo: "usuario",
+      entidadeId: alvo.id,
+      entidadeNome: alvo.nome,
+      campanhaId: null,
+      acao: "exclusao",
+      alteradoPor: excluidoPor,
+    });
+  }
   return rowCount > 0;
 }
 
