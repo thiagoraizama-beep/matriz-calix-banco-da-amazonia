@@ -159,7 +159,7 @@ function ReactionBar({ comment, userId, onToggle }) {
   );
 }
 
-function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onResponder }) {
+function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onResponder, respondendoNomeDe }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState(comment.texto);
   const [salvando, setSalvando] = useState(false);
@@ -178,7 +178,12 @@ function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onRe
   return (
     <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-        <strong style={{ fontSize: 12.5 }}>{comment.autor_nome}</strong>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+          <strong style={{ fontSize: 12.5 }}>{comment.autor_nome}</strong>
+          {respondendoNomeDe && (
+            <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>respondendo a <strong>{respondendoNomeDe}</strong></span>
+          )}
+        </div>
         {isAutor && !editando && (
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             <button onClick={() => setEditando(true)} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, cursor: "pointer", padding: 0 }}>
@@ -316,14 +321,26 @@ export default function CommentsTab({ creativeId }) {
     setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, reacoes } : c)));
   }
 
-  // Organiza em topo-level + respostas agrupadas pelo parent_id, mantendo a
-  // ordem cronologica dentro de cada grupo (a lista ja vem ASC do backend).
+  // Organiza em topo-level + respostas, achatando qualquer profundidade (resposta
+  // de resposta) num unico nivel de indentacao sob o comentario raiz -- a UI so
+  // suporta 1 nivel visual, mas o backend permite parent_id apontar pra qualquer
+  // comentario. Sem achatar, uma resposta a uma resposta ficava "orfa": seu
+  // parent_id apontava pra um comentario que nunca era iterado como raiz, entao
+  // nunca aparecia na tela (o comentario existia no banco, so nao era renderizado).
+  const porId = Object.fromEntries((comments || []).map((c) => [c.id, c]));
+  function raizDe(c) {
+    let atual = c;
+    while (atual.parent_id && porId[atual.parent_id]) atual = porId[atual.parent_id];
+    return atual.id;
+  }
+
   const raiz = (comments || []).filter((c) => !c.parent_id);
   const respostasPorPai = {};
   for (const c of comments || []) {
     if (c.parent_id) {
-      if (!respostasPorPai[c.parent_id]) respostasPorPai[c.parent_id] = [];
-      respostasPorPai[c.parent_id].push(c);
+      const raizId = raizDe(c);
+      if (!respostasPorPai[raizId]) respostasPorPai[raizId] = [];
+      respostasPorPai[raizId].push(c);
     }
   }
 
@@ -359,6 +376,7 @@ export default function CommentsTab({ creativeId }) {
                       onReact={handleReact}
                       userId={user?.id}
                       onResponder={iniciarResposta}
+                      respondendoNomeDe={r.parent_id !== c.id ? porId[r.parent_id]?.autor_nome : null}
                     />
                   ))}
                 </div>
