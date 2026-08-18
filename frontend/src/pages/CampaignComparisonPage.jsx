@@ -165,7 +165,7 @@ export default function CampaignComparisonPage({ itens, onVoltar }) {
               alignItems: "center",
               gap: 6,
               padding: "8px 14px",
-              borderRadius: 10,
+              borderRadius: 999,
               border: "1px solid var(--border)",
               background: "var(--card-bg)",
               color: "var(--text-primary)",

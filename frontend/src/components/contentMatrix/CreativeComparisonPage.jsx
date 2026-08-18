@@ -124,7 +124,7 @@ export default function CreativeComparisonPage({ creatives, performanceMap, camp
           <button
             onClick={onVoltar}
             style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10,
+              display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 999,
               border: "1px solid var(--border)", background: "var(--card-bg)", color: "var(--text-primary)",
               fontSize: 12, fontWeight: 600, cursor: "pointer",
             }}
