@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import ThemeToggle from "../components/layout/ThemeToggle.jsx";
 import SimpleDateRangeFields from "../components/layout/SimpleDateRangeFields.jsx";
 import { STATUS_LABEL, STATUS_BADGE_CLASS, periodoIntersecta } from "../utils/campanhaStatus.js";
 import CampaignComparisonPage from "./CampaignComparisonPage.jsx";
@@ -95,7 +94,7 @@ export default function CampaignComparisonSetupPage({ campanhas, onVoltar }) {
             disabled={selecionados.length < 2}
             style={{
               padding: "8px 14px",
-              borderRadius: 10,
+              borderRadius: 999,
               border: "none",
               background: "var(--accent)",
               color: "#fff",
@@ -114,7 +113,7 @@ export default function CampaignComparisonSetupPage({ campanhas, onVoltar }) {
               alignItems: "center",
               gap: 6,
               padding: "8px 14px",
-              borderRadius: 10,
+              borderRadius: 999,
               border: "1px solid var(--border)",
               background: "var(--card-bg)",
               color: "var(--text-primary)",
@@ -125,7 +124,6 @@ export default function CampaignComparisonSetupPage({ campanhas, onVoltar }) {
           >
             <CloseIcon /> Fechar comparativo
           </button>
-          <ThemeToggle variant="plain" />
         </div>
       </div>
       <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 16px" }}>
@@ -143,7 +141,7 @@ export default function CampaignComparisonSetupPage({ campanhas, onVoltar }) {
               gap: 8,
               background: "var(--bg)",
               border: "1px solid var(--border)",
-              borderRadius: 10,
+              borderRadius: 999,
               padding: "9px 12px",
             }}
           >
