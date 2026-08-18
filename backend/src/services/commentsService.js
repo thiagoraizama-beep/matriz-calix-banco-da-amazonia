@@ -92,12 +92,14 @@ export async function criarComentario({ creativeId, autorId, texto, mencionadosI
   // Resposta so pode apontar pra um comentario que exista no MESMO criativo --
   // evita, via API direta, encadear resposta num comentario de outro criativo.
   let parentValido = null;
+  let autorDoPaiId = null;
   if (parentId) {
     const { rows: parentRows } = await query(
-      "SELECT id FROM creative_comments WHERE id = $1 AND creative_id = $2",
+      "SELECT id, autor_id FROM creative_comments WHERE id = $1 AND creative_id = $2",
       [parentId, creativeId]
     );
     parentValido = parentRows[0]?.id || null;
+    autorDoPaiId = parentRows[0]?.autor_id || null;
   }
 
   const { rows } = await query(
@@ -108,7 +110,10 @@ export async function criarComentario({ creativeId, autorId, texto, mencionadosI
 
   const mencionaveis = await listMencionaveisPorCreative(creativeId);
   const idsValidos = new Set(mencionaveis.map((u) => u.id));
-  const idsParaMencionar = [...new Set(mencionadosIds)].filter((id) => idsValidos.has(id) && id !== autorId);
+  // O autor do comentario respondido tambem e notificado, mesmo sem @mencao
+  // explicita -- reusa a mesma tabela/mecanismo de notificacao das mencoes.
+  const idsBase = autorDoPaiId ? [...mencionadosIds, autorDoPaiId] : mencionadosIds;
+  const idsParaMencionar = [...new Set(idsBase)].filter((id) => idsValidos.has(id) && id !== autorId);
 
   for (const usuarioId of idsParaMencionar) {
     await query(
@@ -129,7 +134,7 @@ export async function listNotificacoesMencao(userId) {
   const { rows } = await query(
     `SELECT
         m.id AS mention_id, m.lido, m.criado_em,
-        c.id AS comment_id, LEFT(c.texto, 80) AS trecho,
+        c.id AS comment_id, LEFT(c.texto, 80) AS trecho, (c.parent_id IS NOT NULL) AS eh_resposta,
         cr.id AS creative_id, cr.nome AS creative_nome,
         au.nome AS autor_nome,
         COALESCE(cv.campanha_id, (SELECT id FROM campanhas WHERE nome = cr.campanha)) AS campanha_id
