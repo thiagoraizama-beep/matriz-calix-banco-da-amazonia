@@ -28,7 +28,7 @@
   "crons": [
     {
       "path": "/api/status-sync/cron",
-      "schedule": "0 */3 * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
