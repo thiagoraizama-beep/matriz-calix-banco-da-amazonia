@@ -26,10 +26,38 @@ function WarningIcon() {
   );
 }
 
-function PlusIcon() {
+function PlusIcon({ size = 18 }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function SyncIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  );
+}
+
+function CompareIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M9 3v18M15 3v18M4 8h5M4 16h5M15 8h5M15 16h5" />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   );
 }
@@ -153,8 +181,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const modoSelecaoAtivo = comparando || editandoEmMassa;
 
   const newButton = !modoSelecaoAtivo && (
-    <button onClick={openCreate} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-      + Novo criativo
+    <button onClick={openCreate} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+      <PlusIcon size={14} /> Novo criativo
     </button>
   );
 
@@ -168,11 +196,11 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       disabled={syncing}
       title="Verifica a planilha de Realizado e atualiza status automaticamente (Programado -> Ativo, etc)"
       style={{
-        padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: syncing ? "default" : "pointer",
+        display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: syncing ? "default" : "pointer",
         border: `1px solid ${COR_SYNC}`, background: "transparent", color: COR_SYNC, opacity: syncing ? 0.6 : 1,
       }}
     >
-      {syncing ? "Sincronizando..." : "Sincronizar status"}
+      <SyncIcon /> {syncing ? "Sincronizando..." : "Sincronizar status"}
     </button>
   );
 
@@ -180,22 +208,22 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     <button
       onClick={handleCompararClick}
       style={{
-        padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+        display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
         border: `1px solid ${COR_COMPARAR}`,
         background: comparando ? COR_COMPARAR : "transparent",
         color: comparando ? "#fff" : COR_COMPARAR,
       }}
     >
-      {comparando ? `Cancelar seleção (${selecionados.length})` : "Selecionar para comparar"}
+      <CompareIcon /> {comparando ? `Cancelar seleção (${selecionados.length})` : "Selecionar para comparar"}
     </button>
   );
 
   const abrirComparativoButton = comparando && selecionados.length >= 2 && (
     <button
       onClick={() => setComparativoAberto(true)}
-      style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: COR_COMPARAR, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+      style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "none", background: COR_COMPARAR, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
     >
-      Comparar agora ({selecionados.length})
+      <CompareIcon /> Comparar agora ({selecionados.length})
     </button>
   );
 
@@ -203,13 +231,13 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     <button
       onClick={handleEditarEmMassaClick}
       style={{
-        padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+        display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
         border: `1px solid ${COR_EDITAR_MASSA}`,
         background: editandoEmMassa ? COR_EDITAR_MASSA : "transparent",
         color: editandoEmMassa ? "#fff" : COR_EDITAR_MASSA,
       }}
     >
-      {editandoEmMassa ? `Cancelar seleção (${selecionados.length})` : "Editar em massa"}
+      <EditIcon /> {editandoEmMassa ? `Cancelar seleção (${selecionados.length})` : "Editar em massa"}
     </button>
   );
 
@@ -217,9 +245,9 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     <>
       <button
         onClick={() => setBulkModalAberto(true)}
-        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: COR_EDITAR_MASSA, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "none", background: COR_EDITAR_MASSA, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
       >
-        Editar {selecionados.length} criativo(s)
+        <EditIcon /> Editar {selecionados.length} criativo(s)
       </button>
       <button
         onClick={() => setBulkDeleting(true)}
