@@ -6,6 +6,7 @@ import CampaignComparisonSetupPage from "./CampaignComparisonSetupPage.jsx";
 import Spinner from "../components/common/Spinner.jsx";
 import KanbanBoard from "../components/common/KanbanBoard.jsx";
 import { useCampanhasHomeFiltersContext } from "../context/CampanhasHomeFiltersContext.jsx";
+import { CompareIcon } from "../components/layout/TopNav.jsx";
 
 const PAGE_SIZE = 20;
 
@@ -92,9 +93,33 @@ export default function CampanhasHomePage({ campanhasParaAnalise = [] }) {
 
   const totalPaginas = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
+  const totalCampanhas = visualizacao === "kanban" ? kanbanCampanhas?.length : data?.total;
+
+  const toolbar = (
+    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+      {campanhasParaAnalise.length > 0 && (
+        <button
+          onClick={() => setComparativoAberto(true)}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999,
+            border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}
+        >
+          <CompareIcon /> Comparativo
+        </button>
+      )}
+      {totalCampanhas !== undefined && (
+        <span style={{ fontSize: 12, color: "var(--text-secondary)", flexShrink: 0, whiteSpace: "nowrap" }}>
+          {totalCampanhas} campanha{totalCampanhas === 1 ? "" : "s"}
+        </span>
+      )}
+    </div>
+  );
+
   if (visualizacao === "kanban") {
     return (
       <div style={{ paddingTop: 20 }}>
+        {toolbar}
         {!kanbanCampanhas ? (
           <Spinner />
         ) : (
@@ -114,6 +139,7 @@ export default function CampanhasHomePage({ campanhasParaAnalise = [] }) {
 
   return (
     <div style={{ paddingTop: 20 }}>
+      {toolbar}
       {!data ? (
         <Spinner />
       ) : data.items.length === 0 ? (

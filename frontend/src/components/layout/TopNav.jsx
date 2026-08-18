@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { LogoutIcon } from "./navIcons.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
-import ThemeToggle from "./ThemeToggle.jsx";
 import NotificationBell from "./NotificationBell.jsx";
 import Avatar from "../common/Avatar.jsx";
 import useIsMobile from "../../hooks/useIsMobile.js";
@@ -61,7 +60,7 @@ function WarningIcon() {
   );
 }
 
-function CompareIcon() {
+export function CompareIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M9 3v18M15 3v18M4 8h5M4 16h5M15 8h5M15 16h5" />
@@ -356,22 +355,6 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
               pill
             />
           </div>
-          {campanhasFilters.temComparativo && (
-            <button
-              onClick={() => campanhasFilters.setComparativoAberto(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999,
-                border: "none", background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
-              }}
-            >
-              <CompareIcon /> Comparativo
-            </button>
-          )}
-          {campanhasFilters.total !== null && (
-            <span style={{ fontSize: 12, color: "var(--text-secondary)", flexShrink: 0, whiteSpace: "nowrap" }}>
-              {campanhasFilters.total} campanha{campanhasFilters.total === 1 ? "" : "s"}
-            </span>
-          )}
         </div>
       )}
 
@@ -485,10 +468,6 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                   zIndex: 25,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px 10px" }}>
-                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Tema</span>
-                  <ThemeToggle variant="plain" />
-                </div>
                 {visualizacaoAtual && (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px 10px" }}>
                     <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Visualização</span>
