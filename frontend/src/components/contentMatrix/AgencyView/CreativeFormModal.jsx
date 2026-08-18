@@ -221,7 +221,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   );
 
   async function handleSubmit(e) {
-    e.preventDefault();
+    e?.preventDefault();
     setError("");
     setCampoInvalido(null);
     const erroValidacao = validarCamposObrigatorios();
@@ -319,8 +319,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(20,33,61,0.55)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}
     >
-      <form
-        onSubmit={handleSubmit}
+      <div
         style={{
           width: "100%", maxWidth: 640, maxHeight: "92vh", overflowY: "auto",
           display: "flex", flexDirection: "column",
@@ -699,7 +698,8 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
+                onClick={handleSubmit}
                 disabled={saving}
                 style={{ flex: 1, padding: "11px 0", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
               >
@@ -708,7 +708,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
             )}
           </div>
         </div>
-      </form>
+      </div>
 
       {confirmandoFechar && (
         <div

@@ -325,10 +325,6 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                   }}
                 >
                   <div>
-                    <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Status</label>
-                    <MultiSelectDropdown multi value={matrixFilters.status} onChange={matrixFilters.setStatus} options={matrixFilters.matrixOptions.statuses} placeholder="Todos os status" />
-                  </div>
-                  <div>
                     <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Plataforma</label>
                     <MultiSelectDropdown multi value={matrixFilters.plataforma} onChange={matrixFilters.setPlataforma} options={matrixFilters.matrixOptions.plataformas} placeholder="Todas as plataformas" />
                   </div>
