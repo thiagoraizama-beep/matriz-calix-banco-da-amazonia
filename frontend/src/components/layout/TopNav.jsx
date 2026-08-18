@@ -3,6 +3,7 @@ import { LogoutIcon } from "./navIcons.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
 import ThemeToggle from "./ThemeToggle.jsx";
+import SlidingToggle from "./SlidingToggle.jsx";
 import NotificationBell from "./NotificationBell.jsx";
 import Avatar from "../common/Avatar.jsx";
 import useIsMobile from "../../hooks/useIsMobile.js";
@@ -523,16 +524,14 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                         {visualizacaoAtual.visualizacao === "grade" ? <GridIcon /> : <KanbanIcon />}
                         Visualização
                       </span>
-                      <button
-                        onClick={() => visualizacaoAtual.setVisualizacao(visualizacaoAtual.visualizacao === "grade" ? "kanban" : "grade")}
-                        title={visualizacaoAtual.visualizacao === "grade" ? "Ver em Kanban" : "Ver em Grade"}
-                        style={{
-                          display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999,
-                          border: "1px solid var(--border)", background: "var(--card-bg)", color: "var(--text-secondary)", cursor: "pointer",
-                        }}
-                      >
-                        {visualizacaoAtual.visualizacao === "grade" ? <KanbanIcon /> : <GridIcon />}
-                      </button>
+                      <SlidingToggle
+                        active={visualizacaoAtual.visualizacao === "grade" ? "left" : "right"}
+                        onToggle={() => visualizacaoAtual.setVisualizacao(visualizacaoAtual.visualizacao === "grade" ? "kanban" : "grade")}
+                        iconLeft={<GridIcon />}
+                        iconRight={<KanbanIcon />}
+                        titleLeft="Ver em Grade"
+                        titleRight="Ver em Kanban"
+                      />
                     </div>
                   )}
                 </div>
