@@ -89,11 +89,16 @@ export default function KanbanBoard({ items, statusOptions, statusLabels, getId 
     // closest('.kanban-drag-handle') detecta se o alvo esta dentro de um card.
     if (e.target.closest(".kanban-drag-handle")) return;
     if (!scrollRef.current) return;
+    e.preventDefault(); // evita iniciar selecao de texto ao clicar sobre um label
     arrastoRef.current = { startX: e.clientX, scrollLeft: scrollRef.current.scrollLeft };
   }
 
   function handlePointerMoveFundo(e) {
     if (!arrastoRef.current || !scrollRef.current) return;
+    // Evita que o navegador entenda o arrasto como selecao de texto (o
+    // comportamento padrao do mousedown+mousemove em cima de texto), que
+    // ficava marcando os labels das colunas em azul durante o pan-scroll.
+    e.preventDefault();
     const dx = e.clientX - arrastoRef.current.startX;
     scrollRef.current.scrollLeft = arrastoRef.current.scrollLeft - dx;
   }
@@ -136,7 +141,7 @@ export default function KanbanBoard({ items, statusOptions, statusLabels, getId 
           onPointerMove={handlePointerMoveFundo}
           onPointerUp={handlePointerUpFundo}
           onPointerLeave={handlePointerUpFundo}
-          style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, maxHeight: "calc(100vh - 260px)" }}
+          style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, maxHeight: "calc(100vh - 260px)", userSelect: "none" }}
         >
           {statusOptions.map((status) => (
             <Column
