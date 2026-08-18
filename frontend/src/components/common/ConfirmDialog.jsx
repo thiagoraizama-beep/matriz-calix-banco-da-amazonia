@@ -1,4 +1,4 @@
-export default function ConfirmDialog({ title, message, onConfirm, onCancel }) {
+export default function ConfirmDialog({ title, message, confirmLabel = "Excluir", onConfirm, onCancel, confirming = false }) {
   return (
     <div
       onClick={onCancel}
@@ -36,6 +36,7 @@ export default function ConfirmDialog({ title, message, onConfirm, onCancel }) {
           </button>
           <button
             onClick={onConfirm}
+            disabled={confirming}
             style={{
               padding: "8px 16px",
               borderRadius: 8,
@@ -44,10 +45,11 @@ export default function ConfirmDialog({ title, message, onConfirm, onCancel }) {
               color: "#fff",
               fontSize: 13,
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: confirming ? "default" : "pointer",
+              opacity: confirming ? 0.7 : 1,
             }}
           >
-            Excluir
+            {confirmLabel}
           </button>
         </div>
       </div>

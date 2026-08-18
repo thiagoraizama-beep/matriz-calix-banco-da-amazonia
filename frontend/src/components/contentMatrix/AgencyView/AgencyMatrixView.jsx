@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMatrixCreatives, getCreativesByCampanha, deleteMatrixCreative, updateMatrixCreativeStatus, syncCampanhaStatus, getPerformancePorCampanha } from "../../../api/client.js";
+import { getMatrixCreatives, getCreativesByCampanha, deleteMatrixCreative, bulkDeleteCreatives, updateMatrixCreativeStatus, syncCampanhaStatus, getPerformancePorCampanha } from "../../../api/client.js";
 import CreativeFormModal from "./CreativeFormModal.jsx";
 import BulkEditModal from "./BulkEditModal.jsx";
 import CreativeCardGrid from "../CreativeCardGrid.jsx";
@@ -48,6 +48,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const [selecionados, setSelecionados] = useState([]);
   const [editandoEmMassa, setEditandoEmMassa] = useState(false);
   const [bulkModalAberto, setBulkModalAberto] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [excluindoEmMassa, setExcluindoEmMassa] = useState(false);
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
   const statusCounts = creatives ? groupByStatus(creatives) : {};
@@ -82,6 +84,19 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     await deleteMatrixCreative(deleting.id);
     setDeleting(null);
     load();
+  }
+
+  async function handleConfirmBulkDelete() {
+    setExcluindoEmMassa(true);
+    try {
+      await bulkDeleteCreatives(selecionados);
+      setBulkDeleting(false);
+      setSelecionados([]);
+      setEditandoEmMassa(false);
+      load();
+    } finally {
+      setExcluindoEmMassa(false);
+    }
   }
 
   async function handleStatusChange(id, status) {
@@ -192,12 +207,20 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   );
 
   const editarEmMassaBarra = editandoEmMassa && selecionados.length > 0 && (
-    <button
-      onClick={() => setBulkModalAberto(true)}
-      style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: COR_EDITAR_MASSA, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-    >
-      Editar {selecionados.length} criativo(s)
-    </button>
+    <>
+      <button
+        onClick={() => setBulkModalAberto(true)}
+        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: COR_EDITAR_MASSA, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+      >
+        Editar {selecionados.length} criativo(s)
+      </button>
+      <button
+        onClick={() => setBulkDeleting(true)}
+        style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--danger)", background: "transparent", color: "var(--danger)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+      >
+        Excluir {selecionados.length} criativo(s)
+      </button>
+    </>
   );
 
   const criativosUrgentes = filtered.filter((c) => isUrgente(c.periodo_inicio));
@@ -276,6 +299,16 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           message={`Tem certeza que deseja excluir "${deleting.nome}"? Esta ação não pode ser desfeita.`}
           onConfirm={handleConfirmDelete}
           onCancel={() => setDeleting(null)}
+        />
+      )}
+      {bulkDeleting && (
+        <ConfirmDialog
+          title="Excluir criativos"
+          message={`Tem certeza que deseja excluir ${selecionados.length} criativo(s)? Esta ação não pode ser desfeita.`}
+          confirmLabel={excluindoEmMassa ? "Excluindo..." : "Excluir"}
+          confirming={excluindoEmMassa}
+          onConfirm={handleConfirmBulkDelete}
+          onCancel={() => setBulkDeleting(false)}
         />
       )}
     </>

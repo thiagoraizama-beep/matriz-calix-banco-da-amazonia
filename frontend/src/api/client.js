@@ -236,6 +236,11 @@ export function bulkUpdateCreatives(ids, patch) {
   return api.patch("/creatives/bulk", { ids, patch }).then((r) => r.data);
 }
 
+// Exclusao em massa: apaga varios criativos de uma vez.
+export function bulkDeleteCreatives(ids) {
+  return api.delete("/creatives/bulk", { data: { ids } }).then((r) => r.data);
+}
+
 export function getRegisteredVehicles() {
   return api.get("/vehicles").then((r) => r.data);
 }

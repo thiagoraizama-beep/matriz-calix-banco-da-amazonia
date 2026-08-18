@@ -10,6 +10,7 @@ import {
   createCreative,
   updateCreative,
   deleteCreative,
+  deleteCreativesBulk,
   updateStatus,
   updateCreativesBulk,
   getStatusHistory,
@@ -174,6 +175,21 @@ router.put(
     }
   }
 );
+
+// Exclusao em massa (Matriz de Conteudo): apaga varios criativos de uma vez.
+// Precisa vir antes de "/:id" senao Express trataria "bulk" como um :id.
+router.delete("/bulk", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "Informe ao menos um id de criativo" });
+    }
+    const resultado = await deleteCreativesBulk(ids);
+    res.json(resultado);
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.delete("/:id", requireRole("agencia"), async (req, res, next) => {
   try {

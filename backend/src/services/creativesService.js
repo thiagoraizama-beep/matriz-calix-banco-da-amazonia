@@ -380,12 +380,35 @@ export async function deleteCreative(id) {
   const creative = await getCreativeById(id);
   if (!creative) return false;
 
-  const cloudinary = getCloudinaryClient();
-  await cloudinary.uploader.destroy(creative.cloudinary_public_id, {
-    resource_type: creative.tipo_midia === "video" ? "video" : "image",
-  });
+  // Criativos "Impulsionado" podem nao ter arquivo (so link_postagem) -- nesse
+  // caso cloudinary_public_id fica null, entao nao ha nada a apagar no Cloudinary.
+  if (creative.cloudinary_public_id) {
+    const cloudinary = getCloudinaryClient();
+    await cloudinary.uploader.destroy(creative.cloudinary_public_id, {
+      resource_type: creative.tipo_midia === "video" ? "video" : "image",
+    });
+  }
   await query("DELETE FROM creatives WHERE id = $1", [id]);
   return true;
+}
+
+// Exclusao em massa (Matriz de Conteudo): remove varios criativos de uma vez,
+// reaproveitando deleteCreative (mesma limpeza de midia no Cloudinary) para cada
+// id. Ids invalidos sao pulados e reportados separadamente, sem interromper os
+// demais -- mesmo padrao de updateCreativesBulk.
+export async function deleteCreativesBulk(ids) {
+  const excluidos = [];
+  const falharam = [];
+  for (const id of ids) {
+    try {
+      const ok = await deleteCreative(id);
+      if (ok) excluidos.push(id);
+      else falharam.push({ id, motivo: "Criativo não encontrado" });
+    } catch (err) {
+      falharam.push({ id, motivo: err.message || "Falha ao excluir" });
+    }
+  }
+  return { excluidos, falharam };
 }
 
 export async function updateStatus(id, novoStatus, user) {
