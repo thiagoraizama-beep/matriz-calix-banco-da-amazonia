@@ -9,6 +9,7 @@ import parceirosRoutes from "./routes/parceiros.routes.js";
 import campanhasRoutes from "./routes/campanhas.routes.js";
 import plataformasRoutes from "./routes/plataformas.routes.js";
 import statusSyncRoutes from "./routes/statusSync.routes.js";
+import notificationsRoutes from "./routes/notifications.routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const app = express();
@@ -22,6 +23,7 @@ app.use("/api/vehicles", requireAuth, vehiclesRoutes);
 app.use("/api/parceiros", requireAuth, parceirosRoutes);
 app.use("/api/campanhas", requireAuth, campanhasRoutes);
 app.use("/api/plataformas", requireAuth, plataformasRoutes);
+app.use("/api/notifications", requireAuth, notificationsRoutes);
 
 app.use("/api/creative-analysis", requireAuth, creativeAnalysisRoutes);
 // Sem requireAuth aqui: a rota /cron dentro deste router e chamada pelo Vercel Cron

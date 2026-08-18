@@ -3,6 +3,7 @@ import { requireRole } from "../middleware/auth.js";
 import {
   listCampanhas,
   listCampanhasHome,
+  listCampanhasKanban,
   createCampanha,
   updateCampanhaNome,
   updateCampanhaStatus,
@@ -32,6 +33,16 @@ router.get("/home", async (req, res, next) => {
       pageSize: pageSize ? Number(pageSize) : 20,
     });
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Kanban: campanhas nao finalizadas/canceladas, sem paginacao (precisa de
+// todas as colunas de status ao mesmo tempo) -- ver listCampanhasKanban.
+router.get("/kanban", async (req, res, next) => {
+  try {
+    res.json(await listCampanhasKanban(req.user));
   } catch (err) {
     next(err);
   }

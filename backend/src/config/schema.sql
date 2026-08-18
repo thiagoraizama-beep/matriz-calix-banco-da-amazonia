@@ -388,3 +388,28 @@ CREATE TABLE IF NOT EXISTS action_log (
   criado_em TIMESTAMP NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_action_log_campanha ON action_log(campanha_id);
+
+-- Comentarios num criativo, com suporte a @mencao de usuarios. Diferente do
+-- action_log, aqui CASCADE em creative_id e o comportamento certo: comentario
+-- so faz sentido enquanto o criativo existe.
+CREATE TABLE IF NOT EXISTS creative_comments (
+  id SERIAL PRIMARY KEY,
+  creative_id INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
+  autor_id INTEGER NOT NULL REFERENCES users(id),
+  texto TEXT NOT NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_creative_comments_creative ON creative_comments(creative_id);
+ALTER TABLE creative_comments ADD COLUMN IF NOT EXISTS editado_em TIMESTAMP;
+
+-- Uma linha por usuario mencionado num comentario (permite N mencoes por
+-- comentario). "lido" controla o badge do sino -- nao apaga a notificacao ao
+-- ler, so marca, para o usuario poder reabrir o historico depois.
+CREATE TABLE IF NOT EXISTS comment_mentions (
+  id SERIAL PRIMARY KEY,
+  comment_id INTEGER NOT NULL REFERENCES creative_comments(id) ON DELETE CASCADE,
+  usuario_mencionado_id INTEGER NOT NULL REFERENCES users(id),
+  lido BOOLEAN NOT NULL DEFAULT false,
+  criado_em TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_comment_mentions_usuario ON comment_mentions(usuario_mencionado_id, lido);

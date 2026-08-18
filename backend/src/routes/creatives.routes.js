@@ -17,6 +17,10 @@ import {
   STATUSES,
   STATUSES_VEICULO,
 } from "../services/creativesService.js";
+import {
+  listMencionaveisPorCreative, listComentariosPorCreative, criarComentario,
+  editarComentario, excluirComentario,
+} from "../services/commentsService.js";
 
 const router = Router();
 const upload = multer({
@@ -105,6 +109,63 @@ router.patch("/bulk", requireRole("agencia"), async (req, res, next) => {
 router.get("/:id/history", async (req, res, next) => {
   try {
     res.json(await getStatusHistory(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Comentarios com @mencao -- qualquer usuario autenticado pode ver/comentar
+// (o escopo real de "quem tem acesso a este criativo" ja foi aplicado antes,
+// na listagem que trouxe o creativo pra tela; aqui so validamos identidade).
+router.get("/:id/comments/mentionable", async (req, res, next) => {
+  try {
+    res.json(await listMencionaveisPorCreative(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/:id/comments", async (req, res, next) => {
+  try {
+    res.json(await listComentariosPorCreative(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/:id/comments", async (req, res, next) => {
+  try {
+    const { texto, mencionadosIds } = req.body;
+    if (!texto?.trim()) return res.status(400).json({ error: "Escreva algo para comentar" });
+    const comentario = await criarComentario({
+      creativeId: req.params.id,
+      autorId: req.user.id,
+      texto: texto.trim(),
+      mencionadosIds: Array.isArray(mencionadosIds) ? mencionadosIds : [],
+    });
+    res.status(201).json(comentario);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put("/comments/:commentId", async (req, res, next) => {
+  try {
+    const { texto } = req.body;
+    if (!texto?.trim()) return res.status(400).json({ error: "Escreva algo para comentar" });
+    const comentario = await editarComentario(req.params.commentId, req.user.id, texto.trim());
+    if (!comentario) return res.status(404).json({ error: "Comentário não encontrado" });
+    res.json(comentario);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/comments/:commentId", async (req, res, next) => {
+  try {
+    const excluido = await excluirComentario(req.params.commentId, req.user.id);
+    if (!excluido) return res.status(404).json({ error: "Comentário não encontrado" });
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

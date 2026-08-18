@@ -161,6 +161,44 @@ export async function listCampanhasHome(user, { busca = "", status = "", page = 
   return { items, total, page, pageSize };
 }
 
+// Busca dedicada pro Kanban: sem paginacao (precisa ver todas as colunas de
+// status de uma vez), mas limitada a campanhas nao finalizadas/canceladas e
+// com um teto de seguranca -- o volume esperado do sistema e de milhares de
+// campanhas ao longo do tempo, mas a maioria ja finalizada/cancelada nao faz
+// sentido aparecer num quadro de gestao do dia a dia.
+const LIMITE_KANBAN = 300;
+const STATUS_FORA_DO_KANBAN = ["finalizado", "cancelado"];
+
+export async function listCampanhasKanban(user) {
+  if (user.papel !== "veiculo" && user.papel !== "parceiro") {
+    const { rows } = await query(
+      `SELECT * FROM campanhas WHERE status NOT IN ('finalizado', 'cancelado')
+       ORDER BY nome ASC LIMIT ${LIMITE_KANBAN}`
+    );
+    const contagens = await contagensPorCampanha(rows.map((r) => r.id));
+    return rows.map((r) => ({ ...toPublicCampanha(r), ...(contagens.get(r.id) || { totalVeiculos: 0, totalCriativos: 0 }) }));
+  }
+
+  const escopos = Array.isArray(user.escopos) ? user.escopos : [];
+  const porCampanha = new Map();
+  for (const e of escopos) {
+    if (!porCampanha.has(e.campanhaId)) {
+      porCampanha.set(e.campanhaId, {
+        id: e.campanhaId,
+        nome: e.campanha,
+        status: e.campanhaStatus,
+        data_inicio: e.data_inicio,
+        data_fim: e.data_fim,
+      });
+    }
+  }
+  let items = [...porCampanha.values()].filter((c) => !STATUS_FORA_DO_KANBAN.includes(c.status));
+  items.sort((a, b) => a.nome.localeCompare(b.nome));
+  items = items.slice(0, LIMITE_KANBAN);
+  const contagens = await contagensPorCampanha(items.map((c) => c.id));
+  return items.map((c) => ({ ...c, ...(contagens.get(c.id) || { totalVeiculos: 0, totalCriativos: 0 }) }));
+}
+
 export async function getCampanhaById(id) {
   const { rows } = await query("SELECT * FROM campanhas WHERE id = $1", [id]);
   return rows[0] ? toPublicCampanha(rows[0]) : null;
