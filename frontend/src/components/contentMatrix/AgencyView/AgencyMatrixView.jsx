@@ -396,14 +396,39 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     />
   );
 
+  // Chips de status clicaveis: alem de mostrar a contagem, clicar aplica o
+  // filtro de status daquele valor (toggle -- clicar de novo remove) --
+  // transforma o resumo num atalho de filtro em vez de so um numero estatico.
   const statusGrid = creatives && (
-    <div className="grid status-grid-4" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 20 }}>
-      {Object.entries(statusCounts).map(([status, count]) => (
-        <div className="card" key={status}>
-          <p className="card-title">{status}</p>
-          <p className="kpi-value">{count}</p>
-        </div>
-      ))}
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+      {Object.entries(statusCounts).map(([status, count]) => {
+        const cor = STATUS_COLORS[status] || { color: "var(--text-secondary)", bg: "var(--border)" };
+        const ativo = filters.status.includes(status);
+        return (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatus(ativo ? filters.status.filter((s) => s !== status) : [...filters.status, status])}
+            style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "8px 14px 8px 12px", borderRadius: 999,
+              border: `1px solid ${ativo ? cor.color : "var(--border)"}`,
+              background: ativo ? cor.bg : "var(--card-bg)",
+              cursor: "pointer", transition: "background 0.15s ease, border-color 0.15s ease",
+            }}
+          >
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: cor.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)" }}>{status}</span>
+            <span
+              style={{
+                minWidth: 20, height: 20, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center",
+                background: ativo ? cor.color : "var(--bg)", color: ativo ? "#fff" : cor.color, fontSize: 11, fontWeight: 700, padding: "0 5px",
+              }}
+            >
+              {count}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 

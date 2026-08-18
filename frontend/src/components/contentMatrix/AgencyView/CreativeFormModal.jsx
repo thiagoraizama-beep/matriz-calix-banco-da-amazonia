@@ -268,6 +268,28 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     }
   }
 
+  // Avanca pro proximo passo do wizard, mas so se nao houver campo obrigatorio
+  // pendente ATE o passo atual (inclusive) -- um erro que pertence a um passo
+  // futuro nao bloqueia o avanco, ja que o usuario ainda vai chegar la.
+  function handleProximo() {
+    const erroValidacao = validarCamposObrigatorios();
+    const indiceAtual = TABS.findIndex((t) => t.id === abaAtiva);
+    const indiceErro = erroValidacao ? TABS.findIndex((t) => t.id === (CAMPO_PARA_ABA[erroValidacao.campo] || "basico")) : -1;
+    if (erroValidacao && indiceErro <= indiceAtual) {
+      setError(erroValidacao.mensagem);
+      setCampoInvalido(erroValidacao.campo);
+      return;
+    }
+    setError("");
+    setCampoInvalido(null);
+    setAbaAtiva(TABS[indiceAtual + 1].id);
+  }
+
+  function handleVoltar() {
+    const indiceAtual = TABS.findIndex((t) => t.id === abaAtiva);
+    if (indiceAtual > 0) setAbaAtiva(TABS[indiceAtual - 1].id);
+  }
+
   function handleFechar() {
     if (ehRascunhoOuNovo && temAlgumCampoPreenchido) {
       setConfirmandoFechar(true);
@@ -321,28 +343,52 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
           </button>
         </div>
 
-        {/* Abas -- mesmo estilo underline do modal de detalhe do criativo */}
-        <div style={{ display: "flex", gap: 4, padding: "16px 24px 0", borderBottom: "1px solid var(--border)" }}>
-          {TABS.map((t) => {
+        {/* Indicador de progresso (wizard) -- passos numerados, ligados por uma
+            linha; so e possivel clicar pra VOLTAR a um passo ja visitado (indice
+            menor que o atual), avançar exige usar o botao Proximo (que dispara a
+            validacao dos campos daquele passo antes de liberar o seguinte). */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 24px 0" }}>
+          {TABS.map((t, i) => {
+            const indiceAtivo = TABS.findIndex((x) => x.id === abaAtiva);
             const temErroNestaAba = campoInvalido && CAMPO_PARA_ABA[campoInvalido] === t.id;
+            const concluido = i < indiceAtivo;
+            const ativo = t.id === abaAtiva;
+            const podeClicar = i <= indiceAtivo;
             return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setAbaAtiva(t.id)}
-                style={{
-                  padding: "8px 4px 12px", marginRight: 20, border: "none", background: "transparent",
-                  color: temErroNestaAba ? "var(--danger)" : abaAtiva === t.id ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: abaAtiva === t.id ? 700 : 500, fontSize: 13.5, cursor: "pointer",
-                  borderBottom: abaAtiva === t.id ? "2px solid var(--accent)" : "2px solid transparent",
-                  transition: "color 0.15s ease, border-color 0.15s ease",
-                }}
-              >
-                {t.label}
-              </button>
+              <div key={t.id} style={{ display: "flex", alignItems: "center", flex: i < TABS.length - 1 ? 1 : "0 0 auto" }}>
+                <button
+                  type="button"
+                  onClick={() => podeClicar && setAbaAtiva(t.id)}
+                  disabled={!podeClicar}
+                  title={t.label}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    width: 28, height: 28, borderRadius: "50%", fontSize: 12, fontWeight: 700,
+                    border: `2px solid ${temErroNestaAba ? "var(--danger)" : ativo || concluido ? "var(--accent)" : "var(--border)"}`,
+                    background: temErroNestaAba ? "rgba(220,38,38,0.1)" : concluido ? "var(--accent)" : ativo ? "var(--accent-soft)" : "var(--card-bg)",
+                    color: temErroNestaAba ? "var(--danger)" : concluido ? "#fff" : ativo ? "var(--accent)" : "var(--text-secondary)",
+                    cursor: podeClicar ? "pointer" : "default",
+                  }}
+                >
+                  {concluido && !temErroNestaAba ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    i + 1
+                  )}
+                </button>
+                {i < TABS.length - 1 && (
+                  <div style={{ flex: 1, height: 2, background: i < indiceAtivo ? "var(--accent)" : "var(--border)", marginLeft: 4 }} />
+                )}
+              </div>
             );
           })}
         </div>
+        <p style={{ margin: "10px 24px 0", fontSize: 14, fontWeight: 700 }}>
+          {TABS.find((t) => t.id === abaAtiva)?.label}
+        </p>
+        <div style={{ height: 1, background: "var(--border)", margin: "12px 24px 0" }} />
 
         <div style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
           {abaAtiva === "basico" && (
@@ -633,13 +679,34 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={saving}
-            style={{ padding: "11px 0", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
-          >
-            {saving ? "Salvando..." : isEdit ? "Salvar alterações" : creative?._duplicate ? "Criar cópia" : "Criar criativo"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {abaAtiva !== "basico" && (
+              <button
+                type="button"
+                onClick={handleVoltar}
+                style={{ padding: "11px 20px", borderRadius: 999, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+              >
+                Voltar
+              </button>
+            )}
+            {abaAtiva !== "notas" ? (
+              <button
+                type="button"
+                onClick={handleProximo}
+                style={{ flex: 1, padding: "11px 0", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+              >
+                Próximo
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={saving}
+                style={{ flex: 1, padding: "11px 0", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
+              >
+                {saving ? "Salvando..." : isEdit ? "Salvar alterações" : creative?._duplicate ? "Criar cópia" : "Criar criativo"}
+              </button>
+            )}
+          </div>
         </div>
       </form>
 
