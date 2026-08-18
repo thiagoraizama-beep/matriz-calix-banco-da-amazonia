@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { bulkUpdateCreatives } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
-import RangeCalendarPicker from "../../layout/RangeCalendarPicker.jsx";
+import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
 import { STATUS_OPTIONS_AGENCIA } from "../statusBadge.jsx";
 
 const TODOS_FORMATOS = [
@@ -75,6 +75,10 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
     setError("");
     if (nenhumCampoMarcado) {
       setError("Marque ao menos um campo para aplicar");
+      return;
+    }
+    if (aplicar.periodo && periodoInicio && periodoFim && periodoInicio > periodoFim) {
+      setError("A data inicial não pode ser depois da data final");
       return;
     }
 
@@ -197,7 +201,7 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
 
           <div style={{ gridColumn: "1 / -1" }}>
             <CampoEmMassa label="Período de veiculação" aplicar={!!aplicar.periodo} onToggleAplicar={() => toggle("periodo")}>
-              <RangeCalendarPicker start={periodoInicio} end={periodoFim} onChange={(s, en) => { setPeriodoInicio(s); setPeriodoFim(en); }} />
+              <SimpleDateRangeFields start={periodoInicio} end={periodoFim} onChange={(s, en) => { setPeriodoInicio(s); setPeriodoFim(en); }} />
             </CampoEmMassa>
           </div>
 
@@ -246,7 +250,16 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
           </div>
         </div>
 
-        {error && <p style={{ color: "var(--danger)", fontSize: 13, margin: 0 }}>{error}</p>}
+        {error && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(220,38,38,0.1)", color: "var(--danger)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            {error}
+          </div>
+        )}
 
         {resultado && (
           <p style={{ fontSize: 12, color: resultado.falharam.length > 0 ? "var(--danger)" : "var(--success)", margin: 0 }}>

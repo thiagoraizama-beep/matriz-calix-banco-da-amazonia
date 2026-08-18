@@ -351,6 +351,17 @@ export async function updateCreative(id, {
   // tanto para a limpeza de midia antiga quanto para o diff do log de auditoria.
   const creativeAntigo = await getCreativeById(id);
 
+  // Valida contra o periodo EFETIVO final (patch recebido + o que ja estava
+  // salvo, ja que a query usa COALESCE) -- evita permitir uma edicao parcial
+  // que so muda um dos dois lados e deixa inicio > fim sem ninguem notar.
+  const inicioEfetivo = periodoInicio || creativeAntigo?.periodo_inicio?.toISOString?.().slice(0, 10) || creativeAntigo?.periodo_inicio;
+  const fimEfetivo = periodoFim || creativeAntigo?.periodo_fim?.toISOString?.().slice(0, 10) || creativeAntigo?.periodo_fim;
+  if (inicioEfetivo && fimEfetivo && String(inicioEfetivo).slice(0, 10) > String(fimEfetivo).slice(0, 10)) {
+    const err = new Error("A data inicial não pode ser depois da data final");
+    err.statusCode = 400;
+    throw err;
+  }
+
   let midiaFields = { publicId: null, secureUrl: null, tipoMidia: null };
   if (file) {
     const upload = await uploadToCloudinary(file.buffer, file.mimetype, process.env.CLOUDINARY_CREATIVES_FOLDER);

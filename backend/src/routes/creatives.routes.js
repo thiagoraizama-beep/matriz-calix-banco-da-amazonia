@@ -208,6 +208,12 @@ router.post(
       if (!nome || !adName || !campanha || !veiculo) {
         return res.status(400).json({ error: "Campos obrigatórios: nome, adName, campanha, veiculo" });
       }
+      if (!formato) {
+        return res.status(400).json({ error: "Selecione o formato" });
+      }
+      if (periodoInicio && periodoFim && periodoInicio > periodoFim) {
+        return res.status(400).json({ error: "A data inicial não pode ser depois da data final" });
+      }
       const creative = await createCreative({
         file: req.file,
         cloudinaryUrl, cloudinaryPublicId, tipoMidia,

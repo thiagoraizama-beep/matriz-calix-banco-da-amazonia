@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createMatrixCreative, updateMatrixCreative, getCampanhas } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
-import RangeCalendarPicker from "../../layout/RangeCalendarPicker.jsx";
+import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
 
 const TODOS_FORMATOS = [
   "Feed", "Stories", "Reels", "Carrossel", "Coleção", "Instant Experience", "Messenger",
@@ -19,11 +19,18 @@ const TODOS_FORMATOS = [
 
 const TIPOS_COMPRA_OPTIONS = ["CPC", "CPM", "CPV", "CPE", "CPL", "CPT", "CPF", "CPA"];
 
-function Field({ label, children }) {
+function Field({ label, children, invalid }) {
   return (
     <div>
-      <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>{label}</label>
-      {children}
+      <label style={{ fontSize: 12, color: invalid ? "var(--danger)" : "var(--text-secondary)", display: "block", marginBottom: 4, fontWeight: invalid ? 700 : 400 }}>
+        {label}
+      </label>
+      <div style={invalid ? { outline: "1px solid var(--danger)", borderRadius: 8 } : undefined}>
+        {children}
+      </div>
+      {invalid && (
+        <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--danger)" }}>Preencha este campo</p>
+      )}
     </div>
   );
 }
@@ -65,6 +72,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   const fileInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [campoInvalido, setCampoInvalido] = useState(null);
 
   const [campanhaOptions, setCampanhaOptions] = useState([]);
   const [veiculoOptions, setVeiculoOptions] = useState([]);
@@ -125,28 +133,32 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   }
 
 
+  const MENSAGEM_CAMPO_PENDENTE = "Preencha os campos pendentes";
+
   function validarCamposObrigatorios() {
     if (impulsionado) {
-      if (!linkPostagem.trim()) return "Preencha o link da postagem impulsionada";
+      if (!linkPostagem.trim()) return { campo: "linkPostagem", mensagem: MENSAGEM_CAMPO_PENDENTE };
     } else if (!isEdit && !file && !creative?.cloudinary_url) {
-      return "Selecione um arquivo de imagem ou vídeo";
+      return { campo: "file", mensagem: MENSAGEM_CAMPO_PENDENTE };
     }
-    if (!campanha) return "Selecione a campanha";
-    if (!veiculo) return "Selecione o veículo";
-    if (!plataforma) return "Selecione a plataforma";
-    if (!tipoCompra) return "Selecione o tipo de compra";
-    if (!nome.trim()) return "Preencha o nome do criativo";
-    if (!adName.trim()) return "Preencha o Ad Name";
-    if (!formato) return "Selecione o formato";
-    if (!periodoInicio || !periodoFim) return "Preencha o período de veiculação";
+    if (!campanha) return { campo: "campanha", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!veiculo) return { campo: "veiculo", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!plataforma) return { campo: "plataforma", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!tipoCompra) return { campo: "tipoCompra", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!nome.trim()) return { campo: "nome", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!adName.trim()) return { campo: "adName", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!formato) return { campo: "formato", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!periodoInicio || !periodoFim) return { campo: "periodo", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (periodoInicio > periodoFim) return { campo: "periodo", mensagem: "A data inicial não pode ser depois da data final" };
     return null;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setCampoInvalido(null);
     const erroValidacao = validarCamposObrigatorios();
-    if (erroValidacao) { setError(erroValidacao); return; }
+    if (erroValidacao) { setError(erroValidacao.mensagem); setCampoInvalido(erroValidacao.campo); return; }
     setSaving(true);
     const urlDestinoNormalizada = urlDestino.trim() && !/^https?:\/\//i.test(urlDestino.trim())
       ? `https://${urlDestino.trim()}`
@@ -254,7 +266,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         </Field>
 
         {impulsionado && (
-          <Field label="Link da postagem *">
+          <Field label="Link da postagem *" invalid={campoInvalido === "linkPostagem"}>
             <input
               value={linkPostagem}
               onChange={(e) => setLinkPostagem(e.target.value)}
@@ -269,7 +281,10 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
             linkar); em Impulsionado fica opcional, so para ter uma imagem de
             preview do card na Matriz (o usuario pode subir um print/download da
             peca se quiser). */}
-        <Field label={impulsionado ? "Arquivo (opcional, para preview)" : isEdit ? "Arquivo (imagem ou vídeo)" : "Arquivo (imagem ou vídeo) *"}>
+        <Field
+          label={impulsionado ? "Arquivo (opcional, para preview)" : isEdit ? "Arquivo (imagem ou vídeo)" : "Arquivo (imagem ou vídeo) *"}
+          invalid={campoInvalido === "file"}
+        >
           {preview && (
             <div style={{ marginBottom: 8, borderRadius: 8, overflow: "hidden", maxHeight: 140, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--border)" }}>
               {(file ? file.type?.startsWith("video") : creative?.tipo_midia === "video") ? (
@@ -306,7 +321,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         </Field>
 
         {/* Campanha → carrega veículos */}
-        <Field label="Campanha *">
+        <Field label="Campanha *" invalid={campoInvalido === "campanha"}>
           <SearchSelect
             value={campanha}
             onChange={handleCampanhaChange}
@@ -317,7 +332,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         </Field>
 
         {/* Veículo — carregado a partir da campanha */}
-        <Field label="Veículo *">
+        <Field label="Veículo *" invalid={campoInvalido === "veiculo"}>
           <SearchSelect
             value={veiculo}
             onChange={handleVeiculoChange}
@@ -327,7 +342,9 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
           />
           {plataformasVeiculo.length > 0 && (
             <div style={{ marginTop: 8 }}>
-              <span style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 5 }}>Plataforma *</span>
+              <span style={{ fontSize: 11, color: campoInvalido === "plataforma" ? "var(--danger)" : "var(--text-secondary)", display: "block", marginBottom: 5, fontWeight: campoInvalido === "plataforma" ? 700 : 400 }}>
+                Plataforma *
+              </span>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {plataformasVeiculo.map((p) => {
                   const sel = plataforma === p;
@@ -340,7 +357,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
                         padding: "4px 12px",
                         borderRadius: 999,
                         border: "1px solid",
-                        borderColor: sel ? "var(--accent)" : "var(--border)",
+                        borderColor: sel ? "var(--accent)" : campoInvalido === "plataforma" ? "var(--danger)" : "var(--border)",
                         background: sel ? "var(--accent)" : "transparent",
                         color: sel ? "#fff" : "var(--text-secondary)",
                         fontSize: 12,
@@ -358,7 +375,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         </Field>
 
         {/* Tipo de compra — seleção única */}
-        <Field label="Tipo de compra">
+        <Field label="Tipo de compra *" invalid={campoInvalido === "tipoCompra"}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
             {TIPOS_COMPRA_OPTIONS.map((t) => {
               const sel = tipoCompra === t;
@@ -371,7 +388,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
                     padding: "4px 12px",
                     borderRadius: 999,
                     border: "1px solid",
-                    borderColor: sel ? "var(--accent)" : "var(--border)",
+                    borderColor: sel ? "var(--accent)" : campoInvalido === "tipoCompra" ? "var(--danger)" : "var(--border)",
                     background: sel ? "var(--accent)" : "transparent",
                     color: sel ? "#fff" : "var(--text-secondary)",
                     fontSize: 12,
@@ -413,7 +430,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         )}
 
         {/* Nome do criativo */}
-        <Field label="Nome do criativo *">
+        <Field label="Nome do criativo *" invalid={campoInvalido === "nome"}>
           <input value={nome} onChange={(e) => setNome(e.target.value)} required style={inputStyle} />
         </Field>
 
@@ -428,18 +445,17 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         </Field>
 
         {/* Ad Name */}
-        <Field label="Ad Name *">
-          <textarea
+        <Field label="Ad Name *" invalid={campoInvalido === "adName"}>
+          <input
             value={adName}
-            onChange={(e) => setAdName(e.target.value.replace(/\n/g, ""))}
+            onChange={(e) => setAdName(e.target.value)}
             placeholder="Deve bater exatamente com o Ad Name da planilha"
-            rows={2}
-            style={{ ...textareaStyle, resize: "none" }}
+            style={inputStyle}
           />
         </Field>
 
         {/* Formato */}
-        <Field label="Formato">
+        <Field label="Formato *" invalid={campoInvalido === "formato"}>
           <SearchSelect
             value={formato}
             onChange={(v) => setFormato(v || "")}
@@ -450,8 +466,8 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         </Field>
 
         {/* Período */}
-        <Field label="Período de veiculação">
-          <RangeCalendarPicker
+        <Field label="Período de veiculação *" invalid={campoInvalido === "periodo"}>
+          <SimpleDateRangeFields
             start={periodoInicio}
             end={periodoFim}
             onChange={(s, en) => { setPeriodoInicio(s); setPeriodoFim(en); }}
@@ -483,7 +499,16 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
           <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={2} style={textareaStyle} />
         </Field>
 
-        {error && <p style={{ color: "var(--danger)", fontSize: 13, margin: 0 }}>{error}</p>}
+        {error && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(220,38,38,0.1)", color: "var(--danger)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            {error}
+          </div>
+        )}
 
         <button
           type="submit"

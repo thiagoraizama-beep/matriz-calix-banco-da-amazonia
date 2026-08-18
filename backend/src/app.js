@@ -35,5 +35,5 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: err.message || "Erro interno" });
+  res.status(err.statusCode || 500).json({ error: err.message || "Erro interno" });
 });
