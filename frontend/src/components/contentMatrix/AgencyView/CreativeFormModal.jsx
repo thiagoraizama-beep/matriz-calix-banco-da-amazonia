@@ -28,9 +28,6 @@ function Field({ label, children, invalid }) {
       <div style={invalid ? { outline: "1px solid var(--danger)", borderRadius: 8 } : undefined}>
         {children}
       </div>
-      {invalid && (
-        <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--danger)" }}>Preencha este campo</p>
-      )}
     </div>
   );
 }
