@@ -13,6 +13,7 @@ import { groupByStatus } from "../statusCounts.js";
 import Spinner from "../../common/Spinner.jsx";
 import useIsMobile from "../../../hooks/useIsMobile.js";
 import ConfirmDialog from "../../common/ConfirmDialog.jsx";
+import TrashIcon from "../../common/TrashIcon.jsx";
 import { isUrgente } from "../../../utils/urgencia.js";
 
 function WarningIcon() {
@@ -145,7 +146,13 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     );
   }
 
-  const newButton = (
+  // Enquanto um modo de selecao em lote (comparar ou editar em massa) esta ativo,
+  // os demais botoes da toolbar somem -- so o que e relevante aquele modo (Cancelar
+  // selecao + a acao do modo) fica visivel, evitando poluir a barra com acoes que
+  // nao fazem sentido misturar com uma selecao em andamento.
+  const modoSelecaoAtivo = comparando || editandoEmMassa;
+
+  const newButton = !modoSelecaoAtivo && (
     <button onClick={openCreate} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
       + Novo criativo
     </button>
@@ -155,7 +162,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const COR_COMPARAR = "var(--accent)";
   const COR_EDITAR_MASSA = "#1e9c6b";
 
-  const syncButton = campanhaId && (
+  const syncButton = campanhaId && !modoSelecaoAtivo && (
     <button
       onClick={handleSync}
       disabled={syncing}
@@ -169,7 +176,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     </button>
   );
 
-  const compareButton = campanhaId && creatives?.length >= 2 && (
+  const compareButton = campanhaId && creatives?.length >= 2 && !editandoEmMassa && (
     <button
       onClick={handleCompararClick}
       style={{
@@ -216,9 +223,10 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       </button>
       <button
         onClick={() => setBulkDeleting(true)}
-        style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--danger)", background: "transparent", color: "var(--danger)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        title={`Excluir ${selecionados.length} criativo(s)`}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 8, border: "none", background: "var(--danger)", color: "#fff", cursor: "pointer", flexShrink: 0 }}
       >
-        Excluir {selecionados.length} criativo(s)
+        <TrashIcon />
       </button>
     </>
   );
