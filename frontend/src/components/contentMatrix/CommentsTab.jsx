@@ -6,6 +6,7 @@ import {
 } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
+import Avatar from "../common/Avatar.jsx";
 
 const EMOJIS_RAPIDOS = ["👍", "❤️", "😂", "🎉", "👀", "✅"];
 const EMOJIS_COMPLETOS = [
@@ -115,7 +116,7 @@ function ReactionBar({ comment, userId, onToggle }) {
   }
 
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginTop: 6 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginTop: 4 }}>
       {Object.entries(grupos).map(([emoji, lista]) => {
         const euReagi = lista.some((r) => r.usuario_id === userId);
         return (
@@ -176,62 +177,70 @@ function CommentItem({ comment, isAutor, onEdit, onDelete, onReact, userId, onRe
   }
 
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-          <strong style={{ fontSize: 12.5 }}>{comment.autor_nome}</strong>
-          {respondendoNomeDe && (
-            <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>respondendo a <strong>{respondendoNomeDe}</strong></span>
+    <div style={{ display: "flex", gap: 10 }}>
+      <Avatar nome={comment.autor_nome} size={30} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ background: "var(--bg)", borderRadius: 12, padding: "10px 14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 2 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+              <strong style={{ fontSize: 12.5 }}>{comment.autor_nome}</strong>
+              {respondendoNomeDe && (
+                <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>respondendo a <strong>{respondendoNomeDe}</strong></span>
+              )}
+            </div>
+            {isAutor && !editando && (
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => setEditando(true)} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                  Editar
+                </button>
+                <button onClick={() => onDelete(comment.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                  Excluir
+                </button>
+              </div>
+            )}
+          </div>
+
+          {editando ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+              <textarea
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                rows={2}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card-bg)", fontFamily: "inherit", fontSize: 12.5, resize: "vertical", boxSizing: "border-box" }}
+              />
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <button onClick={() => { setEditando(false); setTexto(comment.texto); }} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "transparent", fontSize: 11.5, cursor: "pointer" }}>
+                  Cancelar
+                </button>
+                <button onClick={salvar} disabled={salvando} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--accent)", color: "#fff", fontSize: 11.5, fontWeight: 600, cursor: salvando ? "default" : "pointer", opacity: salvando ? 0.7 : 1 }}>
+                  {salvando ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p style={{ margin: 0, fontSize: 13, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{comment.texto}</p>
           )}
         </div>
-        {isAutor && !editando && (
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            <button onClick={() => setEditando(true)} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, cursor: "pointer", padding: 0 }}>
-              Editar
-            </button>
-            <button onClick={() => onDelete(comment.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}>
-              Excluir
-            </button>
-          </div>
-        )}
-      </div>
 
-      {editando ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            rows={2}
-            style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 12.5, resize: "vertical", boxSizing: "border-box" }}
-          />
-          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-            <button onClick={() => { setEditando(false); setTexto(comment.texto); }} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", fontSize: 11.5, cursor: "pointer" }}>
-              Cancelar
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, paddingLeft: 4 }}>
+          <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+            {formatDataHora(comment.criado_em)}
+            {comment.editado_em && <span style={{ fontStyle: "italic" }}> · editado</span>}
+          </span>
+          {onResponder && (
+            <button
+              onClick={() => onResponder(comment)}
+              style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}
+            >
+              Responder
             </button>
-            <button onClick={salvar} disabled={salvando} style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: "var(--accent)", color: "#fff", fontSize: 11.5, cursor: salvando ? "default" : "pointer", opacity: salvando ? 0.7 : 1 }}>
-              {salvando ? "Salvando..." : "Salvar"}
-            </button>
-          </div>
+          )}
         </div>
-      ) : (
-        <p style={{ margin: 0, fontSize: 13, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{comment.texto}</p>
-      )}
 
-      <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--text-secondary)" }}>
-        {formatDataHora(comment.criado_em)}
-        {comment.editado_em && <span style={{ fontStyle: "italic" }}> · (editado)</span>}
-      </p>
-
-      <ReactionBar comment={comment} userId={userId} onToggle={onReact} />
-
-      {onResponder && (
-        <button
-          onClick={() => onResponder(comment)}
-          style={{ marginTop: 4, background: "none", border: "none", color: "var(--text-secondary)", fontSize: 11, cursor: "pointer", padding: 0 }}
-        >
-          Responder
-        </button>
-      )}
+        <div style={{ paddingLeft: 4 }}>
+          <ReactionBar comment={comment} userId={userId} onToggle={onReact} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -345,16 +354,15 @@ export default function CommentsTab({ creativeId }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <strong style={{ fontSize: 13 }}>Comentários e observações</strong>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {!comments ? (
         <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Carregando comentários...</p>
       ) : comments.length === 0 ? (
-        <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Nenhum comentário ainda.</p>
+        <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Nenhum comentário ainda. Seja o primeiro a comentar.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 360, overflowY: "auto", paddingRight: 4 }}>
           {raiz.map((c) => (
-            <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <CommentItem
                 comment={c}
                 isAutor={c.autor_id === user?.id}
@@ -365,7 +373,7 @@ export default function CommentsTab({ creativeId }) {
                 onResponder={iniciarResposta}
               />
               {(respostasPorPai[c.id] || []).length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginLeft: 20, paddingLeft: 10, borderLeft: "2px solid var(--border)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginLeft: 20, paddingLeft: 14, borderLeft: "2px solid var(--border)" }}>
                   {respostasPorPai[c.id].map((r) => (
                     <CommentItem
                       key={r.id}
@@ -386,11 +394,11 @@ export default function CommentsTab({ creativeId }) {
         </div>
       )}
 
-      <form onSubmit={handleEnviar} style={{ position: "relative" }}>
+      <form onSubmit={handleEnviar} style={{ position: "relative", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
         {respondendoA && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 6, padding: "4px 8px", background: "var(--accent-soft)", borderRadius: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 11.5, color: "var(--accent)", marginBottom: 8, padding: "6px 10px", background: "var(--accent-soft)", borderRadius: 8 }}>
             <span>Respondendo a <strong>{respondendoA.autor_nome}</strong></span>
-            <button type="button" onClick={() => setRespondendoA(null)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
+            <button type="button" onClick={() => setRespondendoA(null)} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>×</button>
           </div>
         )}
         <textarea
@@ -399,14 +407,14 @@ export default function CommentsTab({ creativeId }) {
           onChange={handleTextoChange}
           placeholder="Escreva um comentário... use @ para mencionar alguém"
           rows={2}
-          style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontFamily: "inherit", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)", fontFamily: "inherit", fontSize: 13, resize: "vertical", boxSizing: "border-box" }}
         />
 
         {sugestao && sugestao.opcoes.length > 0 && (
           <div
             style={{
               position: "absolute", bottom: "100%", left: 0, marginBottom: 4, width: 220, maxHeight: 160, overflowY: "auto",
-              background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 8,
+              background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10,
               boxShadow: "0 8px 24px rgba(20,33,61,0.15)", zIndex: 10,
             }}
           >
@@ -426,12 +434,12 @@ export default function CommentsTab({ creativeId }) {
 
         {error && <p style={{ color: "var(--danger)", fontSize: 12, margin: "6px 0 0" }}>{error}</p>}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
           <button
             type="submit"
             disabled={enviando || !texto.trim()}
             style={{
-              padding: "7px 16px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff",
+              padding: "8px 18px", borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff",
               fontSize: 13, fontWeight: 600, cursor: enviando || !texto.trim() ? "default" : "pointer",
               opacity: enviando || !texto.trim() ? 0.6 : 1,
             }}

@@ -83,23 +83,34 @@ export async function excluirComentario(commentId, userId) {
   return true;
 }
 
-// Cria o comentario e uma linha de mencao por usuario mencionado -- nunca
-// confia cegamente na lista de ids que veio do cliente: refaz a checagem de
-// "quem pode ser mencionado" no servidor e silenciosamente ignora qualquer
-// id fora dessa lista (fail-closed, sem erro pro usuario -- ele so nao
-// consegue mencionar quem nao deveria, sem precisar saber o motivo exato).
+// Cria o comentario e grava quem deve ser notificado (tabela comment_mentions,
+// que hoje funciona como "notificacoes do comentario", nao so @mencoes
+// literais). Regra de notificacao por papel (pedido explicito: "se nao
+// perderiamos o controle dos comentarios"):
+// - agencia: SEMPRE notificada de qualquer comentario/resposta em qualquer
+//   criativo, mesmo sem @mencao -- e quem acompanha tudo.
+// - veiculo: notificado de qualquer comentario nos criativos aos quais tem
+//   acesso (nao so quando @mencionado) -- e quem esta "no assunto" daquele
+//   criativo.
+// - cliente: SO notificado se foi @mencionado explicitamente ou se e o autor
+//   do comentario que esta sendo respondido -- evita notificar o cliente de
+//   conversas internas entre agencia/veiculo que nao dizem respeito a ele.
+// Nunca confia cegamente na lista de ids que veio do cliente: refaz a
+// checagem de "quem pode ser mencionado" no servidor.
 export async function criarComentario({ creativeId, autorId, texto, mencionadosIds = [], parentId = null }) {
   // Resposta so pode apontar pra um comentario que exista no MESMO criativo --
   // evita, via API direta, encadear resposta num comentario de outro criativo.
   let parentValido = null;
-  let autorDoPaiId = null;
+  let autorDoPai = null;
   if (parentId) {
     const { rows: parentRows } = await query(
-      "SELECT id, autor_id FROM creative_comments WHERE id = $1 AND creative_id = $2",
+      `SELECT c.id, c.autor_id, u.papel AS autor_papel
+       FROM creative_comments c JOIN users u ON u.id = c.autor_id
+       WHERE c.id = $1 AND c.creative_id = $2`,
       [parentId, creativeId]
     );
     parentValido = parentRows[0]?.id || null;
-    autorDoPaiId = parentRows[0]?.autor_id || null;
+    autorDoPai = parentRows[0] || null;
   }
 
   const { rows } = await query(
@@ -110,15 +121,29 @@ export async function criarComentario({ creativeId, autorId, texto, mencionadosI
 
   const mencionaveis = await listMencionaveisPorCreative(creativeId);
   const idsValidos = new Set(mencionaveis.map((u) => u.id));
-  // O autor do comentario respondido tambem e notificado, mesmo sem @mencao
-  // explicita -- reusa a mesma tabela/mecanismo de notificacao das mencoes.
-  const idsBase = autorDoPaiId ? [...mencionadosIds, autorDoPaiId] : mencionadosIds;
-  const idsParaMencionar = [...new Set(idsBase)].filter((id) => idsValidos.has(id) && id !== autorId);
+  // Notificacao automatica: agencia inteira + veiculo com acesso aquele
+  // criativo, sempre -- reusa listMencionaveisPorCreative, que ja resolve
+  // exatamente esse conjunto (agencia sem restricao + veiculo com
+  // acesso_matriz no vinculo do criativo).
+  const idsAutomaticos = new Set(mencionaveis.map((u) => u.id));
+  // @mencao explicita (so pode mencionar quem esta em mencionaveis -- inclui
+  // cliente futuramente se um dia entrar na lista, mas hoje nunca inclui).
+  const idsMencionados = new Set(mencionadosIds.filter((id) => idsValidos.has(id)));
+  // Autor do comentario respondido -- notificado mesmo se for cliente (nao
+  // esta em idsValidos/mencionaveis), caso especial adicionado manualmente.
+  const idsResposta = autorDoPai ? [autorDoPai.autor_id] : [];
 
-  for (const usuarioId of idsParaMencionar) {
+  const idsParaNotificar = [...new Set([...idsAutomaticos, ...idsMencionados, ...idsResposta])].filter(
+    (id) => id !== autorId
+  );
+
+  for (const usuarioId of idsParaNotificar) {
+    // eh_mencao_direta so quando o usuario foi de fato citado com @Nome --
+    // usado apenas para o texto no sino ("mencionou voce" vs "novo comentario").
+    const ehMencaoDireta = idsMencionados.has(usuarioId);
     await query(
-      `INSERT INTO comment_mentions (comment_id, usuario_mencionado_id) VALUES ($1, $2)`,
-      [comentario.id, usuarioId]
+      `INSERT INTO comment_mentions (comment_id, usuario_mencionado_id, eh_mencao_direta) VALUES ($1, $2, $3)`,
+      [comentario.id, usuarioId, ehMencaoDireta]
     );
   }
 
@@ -133,7 +158,7 @@ export async function criarComentario({ creativeId, autorId, texto, mencionadosI
 export async function listNotificacoesMencao(userId) {
   const { rows } = await query(
     `SELECT
-        m.id AS mention_id, m.lido, m.criado_em,
+        m.id AS mention_id, m.lido, m.criado_em, m.eh_mencao_direta,
         c.id AS comment_id, LEFT(c.texto, 80) AS trecho, (c.parent_id IS NOT NULL) AS eh_resposta,
         cr.id AS creative_id, cr.nome AS creative_nome,
         au.nome AS autor_nome,

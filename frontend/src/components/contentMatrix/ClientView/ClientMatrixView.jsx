@@ -137,6 +137,8 @@ export default function ClientMatrixView({ campanhaId } = {}) {
           selectable={comparando}
           selected={selecionados.includes(c.id)}
           onToggleSelect={toggleSelect}
+          esconderStatusBadge
+          modoKanban
         />
       )}
     />

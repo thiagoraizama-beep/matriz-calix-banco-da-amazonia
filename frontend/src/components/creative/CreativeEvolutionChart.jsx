@@ -3,13 +3,16 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { getCreativeSeries } from "../../api/client.js";
 import Spinner from "../common/Spinner.jsx";
 
+// Paleta institucional do Banco da Amazonia (mesmos tons do Avatar.jsx) --
+// todas as metricas em variacoes de verde/terroso da marca, sem vermelho ou
+// laranja genericos.
 const METRICS = [
-  { key: "cliques", label: "Cliques", color: "#16a34a" },
-  { key: "impressoes", label: "Impressões", color: "#2f6feb" },
-  { key: "videoViews", label: "Visualizações", color: "#f59e0b" },
-  { key: "investimento", label: "Investimento", color: "#dc2626" },
-  { key: "leads", label: "Leads", color: "#a855f7" },
-  { key: "sessoes", label: "Sessões", color: "#0891b2" },
+  { key: "cliques", label: "Cliques", color: "#0B6E4F" },
+  { key: "impressoes", label: "Impressões", color: "#1E9C6B" },
+  { key: "videoViews", label: "Visualizações", color: "#00695C" },
+  { key: "investimento", label: "Investimento", color: "#4E6B4A" },
+  { key: "leads", label: "Leads", color: "#2E7D32" },
+  { key: "sessoes", label: "Sessões", color: "#003D2A" },
 ];
 
 function formatDateBR(iso) {

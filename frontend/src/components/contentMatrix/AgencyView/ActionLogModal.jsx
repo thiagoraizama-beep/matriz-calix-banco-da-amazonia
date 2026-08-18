@@ -44,9 +44,18 @@ function formatValorCampo(valor, campo) {
 function AcaoBadge({ acao }) {
   const cor = ACAO_COR[acao] || { bg: "var(--border)", color: "var(--text-secondary)" };
   return (
-    <span style={{ padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: cor.bg, color: cor.color, flexShrink: 0 }}>
+    <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 700, background: cor.bg, color: cor.color, flexShrink: 0 }}>
       {ACAO_LABEL[acao] || acao}
     </span>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
   );
 }
 
@@ -62,63 +71,61 @@ export default function ActionLogModal({ campanhaId, global = false, onClose }) 
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(20,33,61,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}
+      style={{ position: "fixed", inset: 0, background: "rgba(20,33,61,0.55)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="card"
-        style={{ width: 640, maxHeight: "85vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}
+        style={{
+          width: 640, maxHeight: "85vh", overflowY: "auto", display: "flex", flexDirection: "column",
+          background: "var(--card-bg)", borderRadius: 16, boxShadow: "0 24px 60px rgba(10,16,32,0.35)",
+        }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong style={{ fontSize: 16 }}>Histórico de ações</strong>
-          <button type="button" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-secondary)" }}>×</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 16px", borderBottom: "1px solid var(--border)" }}>
+          <strong style={{ fontSize: 16, fontWeight: 700 }}>Histórico de ações</strong>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: "50%", border: "none", background: "var(--bg)", cursor: "pointer", color: "var(--text-secondary)" }}
+          >
+            <CloseIcon />
+          </button>
         </div>
 
-        {error && <p style={{ color: "var(--danger)", fontSize: 13, margin: 0 }}>{error}</p>}
+        <div style={{ padding: "18px 24px 24px", display: "flex", flexDirection: "column", gap: 10 }}>
+          {error && <p style={{ color: "var(--danger)", fontSize: 13, margin: 0 }}>{error}</p>}
 
-        {!error && !acoes && (
-          <div style={{ padding: "30px 0" }}><Spinner /></div>
-        )}
+          {!error && !acoes && (
+            <div style={{ padding: "30px 0" }}><Spinner /></div>
+          )}
 
-        {!error && acoes && acoes.length === 0 && (
-          <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>Nenhuma ação registrada ainda.</p>
-        )}
+          {!error && acoes && acoes.length === 0 && (
+            <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>Nenhuma ação registrada ainda.</p>
+          )}
 
-        {!error && acoes && acoes.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {acoes.map((a) => (
-              <div key={a.id} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                  <AcaoBadge acao={a.acao} />
-                  <strong style={{ fontSize: 13 }}>{a.entidade_nome}</strong>
-                  <span style={{ fontSize: 11, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                    {a.entidade_tipo === "campanha" ? "Campanha" : "Criativo"}
-                  </span>
-                </div>
-                {(a.acao === "edicao" || a.acao === "status") && (
-                  <p style={{ margin: "0 0 4px", fontSize: 12.5 }}>
-                    <strong>{a.campo}:</strong>{" "}
-                    {a.valor_anterior ? `${formatValorCampo(a.valor_anterior, a.campo)} → ` : ""}
-                    {formatValorCampo(a.valor_novo, a.campo) || <span style={{ color: "var(--text-secondary)" }}>(vazio)</span>}
-                  </p>
-                )}
-                <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-secondary)" }}>
-                  {a.origem === "automatico" ? "Sistema (automático)" : a.alterado_por_nome || "Usuário removido"}
-                  {" · "}
-                  {formatDataHora(a.criado_em)}
-                </p>
+          {!error && acoes && acoes.length > 0 && acoes.map((a) => (
+            <div key={a.id} style={{ background: "var(--bg)", borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
+                <AcaoBadge acao={a.acao} />
+                <strong style={{ fontSize: 13 }}>{a.entidade_nome}</strong>
+                <span style={{ fontSize: 10.5, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
+                  {a.entidade_tipo === "campanha" ? "Campanha" : "Criativo"}
+                </span>
               </div>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button
-            onClick={onClose}
-            style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, cursor: "pointer" }}
-          >
-            Fechar
-          </button>
+              {(a.acao === "edicao" || a.acao === "status") && (
+                <p style={{ margin: "0 0 5px", fontSize: 12.5 }}>
+                  <strong>{a.campo}:</strong>{" "}
+                  {a.valor_anterior ? `${formatValorCampo(a.valor_anterior, a.campo)} → ` : ""}
+                  {formatValorCampo(a.valor_novo, a.campo) || <span style={{ color: "var(--text-secondary)" }}>(vazio)</span>}
+                </p>
+              )}
+              <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-secondary)" }}>
+                {a.origem === "automatico" ? "Sistema (automático)" : a.alterado_por_nome || "Usuário removido"}
+                {" · "}
+                {formatDataHora(a.criado_em)}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </div>

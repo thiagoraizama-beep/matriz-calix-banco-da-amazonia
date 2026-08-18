@@ -240,8 +240,8 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
               const matrixFilterAtivo =
                 matrixFilters.status.length > 0 ||
                 matrixFilters.veiculo.length > 0 ||
-                matrixFilters.campanha.length > 0 ||
-                matrixFilters.plataforma.length > 0;
+                matrixFilters.plataforma.length > 0 ||
+                matrixFilters.modeloCompra.length > 0;
               return (
                 <button
                   onClick={() => setFilterOpen((o) => !o)}
@@ -262,6 +262,11 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                 >
                   <FilterIcon />
                   Filtro
+                  {matrixFilterAtivo && (
+                    <span style={{ minWidth: 16, height: 16, borderRadius: "50%", background: "var(--accent)", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>
+                      {matrixFilters.status.length + matrixFilters.veiculo.length + matrixFilters.plataforma.length + matrixFilters.modeloCompra.length}
+                    </span>
+                  )}
                 </button>
               );
             })()}
@@ -287,25 +292,37 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                   }}
                 >
                   <div>
-                    <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Campanha</label>
-                    <MultiSelectDropdown multi value={matrixFilters.campanha} onChange={matrixFilters.setCampanha} options={matrixFilters.matrixOptions.campanhas} placeholder="Todas as campanhas" />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Veículo</label>
-                    <MultiSelectDropdown multi value={matrixFilters.veiculo} onChange={matrixFilters.setVeiculo} options={matrixFilters.matrixOptions.veiculos} placeholder="Todos os veículos" />
+                    <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Status</label>
+                    <MultiSelectDropdown multi value={matrixFilters.status} onChange={matrixFilters.setStatus} options={matrixFilters.matrixOptions.statuses} placeholder="Todos os status" />
                   </div>
                   <div>
                     <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Plataforma</label>
                     <MultiSelectDropdown multi value={matrixFilters.plataforma} onChange={matrixFilters.setPlataforma} options={matrixFilters.matrixOptions.plataformas} placeholder="Todas as plataformas" />
                   </div>
                   <div>
+                    <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Veículo</label>
+                    <MultiSelectDropdown multi value={matrixFilters.veiculo} onChange={matrixFilters.setVeiculo} options={matrixFilters.matrixOptions.veiculos} placeholder="Todos os veículos" />
+                  </div>
+                  <div>
                     <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Modelo de compra</label>
                     <MultiSelectDropdown multi value={matrixFilters.modeloCompra} onChange={matrixFilters.setModeloCompra} options={matrixFilters.matrixOptions.modelosCompra} placeholder="Todos os modelos" />
                   </div>
-                  <div>
-                    <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Status</label>
-                    <MultiSelectDropdown multi value={matrixFilters.status} onChange={matrixFilters.setStatus} options={matrixFilters.matrixOptions.statuses} placeholder="Todos os status" />
-                  </div>
+                  {(matrixFilters.status.length > 0 || matrixFilters.veiculo.length > 0 || matrixFilters.plataforma.length > 0 || matrixFilters.modeloCompra.length > 0) && (
+                    <button
+                      onClick={() => {
+                        matrixFilters.setStatus([]);
+                        matrixFilters.setVeiculo([]);
+                        matrixFilters.setPlataforma([]);
+                        matrixFilters.setModeloCompra([]);
+                      }}
+                      style={{
+                        padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent",
+                        color: "var(--text-secondary)", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      }}
+                    >
+                      Limpar filtros
+                    </button>
+                  )}
                 </div>
               </>
             )}

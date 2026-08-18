@@ -245,7 +245,7 @@ export default function CreativeGridCard({
   creative, onOpenDetail, onEdit, onDuplicate, onDelete, canEdit,
   statusOptions, onStatusChange, updatingStatus, performance,
   selectable, selected, onToggleSelect,
-  urgente, campanhaNome,
+  urgente, campanhaNome, esconderStatusBadge, modoKanban,
 }) {
   const [statusAnchor, setStatusAnchor] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
@@ -286,7 +286,7 @@ export default function CreativeGridCard({
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <StatusBadge status={creative.status} />
+          {!esconderStatusBadge && <StatusBadge status={creative.status} />}
           {urgenciaLabel && (
             <span
               style={{
@@ -403,8 +403,8 @@ export default function CreativeGridCard({
           )}
         </div>
 
-        {performance && <MetricsRow performance={performance} />}
-        {creative.eh_performance && creative.orcamento_projetado > 0 && performance && (
+        {!modoKanban && performance && <MetricsRow performance={performance} />}
+        {!modoKanban && creative.eh_performance && creative.orcamento_projetado > 0 && performance && (
           <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={performance.investimento} />
         )}
       </div>

@@ -194,7 +194,13 @@ export default function NotificationBell({ variant = "onImage" }) {
                     <MentionIcon />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 12, color: "var(--text-primary)" }}>
-                        <strong>{item.data.autor_nome}</strong> {item.data.eh_resposta ? "respondeu a você" : "mencionou você"} em <strong>{item.data.creative_nome}</strong>: "{item.data.trecho}
+                        <strong>{item.data.autor_nome}</strong>{" "}
+                        {item.data.eh_mencao_direta
+                          ? "mencionou você"
+                          : item.data.eh_resposta
+                          ? "respondeu a você"
+                          : "comentou"}{" "}
+                        em <strong>{item.data.creative_nome}</strong>: "{item.data.trecho}
                         {item.data.trecho.length >= 80 ? "..." : ""}"
                       </p>
                       <p style={{ margin: "4px 0 0", fontSize: 10.5, color: "var(--text-secondary)" }}>{formatDataHora(item.data.criado_em)}</p>

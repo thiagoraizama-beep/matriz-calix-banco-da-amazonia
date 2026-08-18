@@ -430,3 +430,8 @@ CREATE TABLE IF NOT EXISTS comment_mentions (
   criado_em TIMESTAMP NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_comment_mentions_usuario ON comment_mentions(usuario_mencionado_id, lido);
+-- Distingue @mencao literal (usuario foi citado com @Nome no texto) de
+-- notificacao automatica por atividade (agencia/veiculo notificados de
+-- qualquer comentario no que tem acesso, mesmo sem serem citados) -- usado so
+-- para o texto exibido no sino ("mencionou voce" vs "novo comentario").
+ALTER TABLE comment_mentions ADD COLUMN IF NOT EXISTS eh_mencao_direta BOOLEAN NOT NULL DEFAULT false;

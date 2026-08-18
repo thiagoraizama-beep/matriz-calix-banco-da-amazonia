@@ -386,6 +386,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           onStatusChange={handleStatusChange}
           updatingStatus={updatingId === c.id}
           performance={performanceMap[c.id]}
+          esconderStatusBadge
+          modoKanban
         />
       )}
       onMoveCard={handleKanbanMove}
