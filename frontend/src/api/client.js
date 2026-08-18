@@ -260,6 +260,16 @@ export function deleteMatrixCreative(id) {
   return api.delete(`/creatives/${id}`).then((r) => r.data);
 }
 
+// Rascunhos: criativos incompletos, privados ao autor, salvos automaticamente
+// ao fechar o formulario sem confirmar a criacao.
+export function createMatrixCreativeRascunho(formData) {
+  return api.post("/creatives/rascunho", formData, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+}
+
+export function getMeusRascunhos() {
+  return api.get("/creatives/meus-rascunhos").then((r) => r.data);
+}
+
 export function updateMatrixCreativeStatus(id, status) {
   return api.patch(`/creatives/${id}/status`, { status }).then((r) => r.data);
 }

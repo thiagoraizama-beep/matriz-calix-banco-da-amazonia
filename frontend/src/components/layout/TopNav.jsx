@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LogoutIcon } from "./navIcons.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
+import ThemeToggle from "./ThemeToggle.jsx";
 import NotificationBell from "./NotificationBell.jsx";
 import Avatar from "../common/Avatar.jsx";
 import useIsMobile from "../../hooks/useIsMobile.js";
@@ -12,7 +13,8 @@ import MultiSelectDropdown from "./MultiSelectDropdown.jsx";
 import { papelLabel } from "../../utils/papelLabel.js";
 import { STATUS_LABEL, STATUS_OPTIONS } from "../../utils/campanhaStatus.js";
 import ActionLogModal from "../contentMatrix/AgencyView/ActionLogModal.jsx";
-import { getCreativesAImplementar } from "../../api/client.js";
+import RascunhosModal from "../contentMatrix/AgencyView/RascunhosModal.jsx";
+import { getCreativesAImplementar, getMeusRascunhos } from "../../api/client.js";
 
 const A_IMPLEMENTAR_POLL_MS = 60_000;
 
@@ -108,6 +110,17 @@ function SettingsIcon() {
   );
 }
 
+function DraftIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <line x1="8" y1="13" x2="16" y2="13" />
+      <line x1="8" y1="17" x2="13" y2="17" />
+    </svg>
+  );
+}
+
 export default function TopNav({ activePage, onNavigate, user, showMatrixFilters, showCampanhasFilters, showVoltar, onVoltar, campanhaId }) {
   const { logout } = useAuth();
   const { theme } = useTheme();
@@ -115,6 +128,8 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
   const [menuOpen, setMenuOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [actionLogAberto, setActionLogAberto] = useState(false);
+  const [rascunhosAberto, setRascunhosAberto] = useState(false);
+  const [totalRascunhos, setTotalRascunhos] = useState(0);
   const matrixFilters = useMatrixFiltersContext();
   const campanhasFilters = useCampanhasHomeFiltersContext();
   const matrixLabel = user?.papel === "cliente" ? "Relatório de Criativos" : PAGES.MATRIZ_CONTEUDO;
@@ -136,6 +151,15 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
     carregar();
     const interval = setInterval(carregar, A_IMPLEMENTAR_POLL_MS);
     return () => clearInterval(interval);
+  }, [user?.papel]);
+
+  function carregarRascunhos() {
+    if (user?.papel !== "agencia") return;
+    getMeusRascunhos().then((lista) => setTotalRascunhos(lista.length)).catch(() => {});
+  }
+
+  useEffect(() => {
+    carregarRascunhos();
   }, [user?.papel]);
 
   function handleNavigate(page) {
@@ -409,6 +433,11 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
             onClose={() => setActionLogAberto(false)}
           />
         )}
+        {rascunhosAberto && (
+          <RascunhosModal
+            onClose={() => { setRascunhosAberto(false); carregarRascunhos(); }}
+          />
+        )}
         <NotificationBell variant="plain" />
 
         <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 6px" }} />
@@ -459,7 +488,7 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                   position: "absolute",
                   top: "calc(100% + 8px)",
                   right: 0,
-                  minWidth: 180,
+                  minWidth: 220,
                   background: "var(--card-bg)",
                   border: "1px solid var(--border)",
                   borderRadius: 12,
@@ -468,9 +497,16 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                   zIndex: 25,
                 }}
               >
+                <p style={{ margin: "2px 10px 6px", fontSize: 10.5, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Preferências
+                </p>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px" }}>
+                  <span style={{ fontSize: 13, color: "var(--text-primary)" }}>Tema</span>
+                  <ThemeToggle variant="plain" />
+                </div>
                 {visualizacaoAtual && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px 10px" }}>
-                    <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Visualização</span>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px" }}>
+                    <span style={{ fontSize: 13, color: "var(--text-primary)" }}>Visualização</span>
                     <button
                       onClick={() => visualizacaoAtual.setVisualizacao(visualizacaoAtual.visualizacao === "grade" ? "kanban" : "grade")}
                       title={visualizacaoAtual.visualizacao === "grade" ? "Ver em Kanban" : "Ver em Grade"}
@@ -483,6 +519,29 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                     </button>
                   </div>
                 )}
+
+                <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }} />
+
+                {user?.papel === "agencia" && (
+                  <button
+                    onClick={() => { setRascunhosAberto(true); setMenuOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 8,
+                      padding: "9px 10px", borderRadius: 8, border: "none", background: "transparent",
+                      color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left",
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <DraftIcon />
+                      Meus rascunhos
+                    </span>
+                    {totalRascunhos > 0 && (
+                      <span style={{ minWidth: 18, height: 18, borderRadius: "50%", background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px", flexShrink: 0 }}>
+                        {totalRascunhos}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={() => handleNavigate(PAGES.PERFIL)}
                   style={{
@@ -490,7 +549,7 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                     alignItems: "center",
                     width: "100%",
                     gap: 8,
-                    padding: "8px 10px",
+                    padding: "9px 10px",
                     borderRadius: 8,
                     border: "none",
                     background: activePage === PAGES.PERFIL ? "var(--accent-soft)" : "transparent",
@@ -511,7 +570,7 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
                     alignItems: "center",
                     width: "100%",
                     gap: 8,
-                    padding: "8px 10px",
+                    padding: "9px 10px",
                     borderRadius: 8,
                     border: "none",
                     background: "transparent",

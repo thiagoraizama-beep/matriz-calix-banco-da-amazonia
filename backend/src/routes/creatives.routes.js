@@ -6,6 +6,7 @@ import {
   listCreativesByCampanha,
   listCreativesAImplementar,
   listCreativesComErro,
+  listMeusRascunhos,
   getCreativeById,
   createCreative,
   updateCreative,
@@ -85,6 +86,54 @@ router.get("/alertas", requireRole("agencia", "veiculo"), async (req, res, next)
     next(err);
   }
 });
+
+// Rascunhos do usuario logado -- privados, escopados por autoria. Mesmo motivo
+// de ordem de rota que "a-implementar"/"alertas" acima.
+router.get("/meus-rascunhos", requireRole("agencia"), async (req, res, next) => {
+  try {
+    res.json(await listMeusRascunhos(req.user.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Salva um rascunho: mesma criacao de sempre, mas sem nenhuma validacao de
+// campos obrigatorios (o usuario pode ter fechado o formulario no meio do
+// preenchimento) e sempre com status='Rascunho', independente do que o
+// cliente mandar. Precisa vir antes de "/:id/..." pelo mesmo motivo das rotas
+// acima.
+router.post(
+  "/rascunho",
+  requireRole("agencia"),
+  (req, res, next) => upload.single("file")(req, res, handleUploadErrors(req, res, next)),
+  async (req, res, next) => {
+    try {
+      const {
+        nome, adName, campanha, campaignName, conjunto, descricao, observacoes,
+        periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
+        urlDestino, impulsionado, segmentacao, titulo, tiposCompra,
+        cloudinaryUrl, cloudinaryPublicId, tipoMidia, campanhaVeiculoId, linkPostagem,
+      } = req.body;
+      const creative = await createCreative({
+        file: req.file,
+        cloudinaryUrl, cloudinaryPublicId, tipoMidia,
+        nome, adName, campanha, campaignName, conjunto, descricao, observacoes,
+        periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
+        urlDestino,
+        impulsionado: impulsionado !== "false",
+        segmentacao, titulo,
+        tiposCompra: tiposCompra ? JSON.parse(tiposCompra) : [],
+        criadoPor: req.user.id,
+        campanhaVeiculoId: campanhaVeiculoId || null,
+        linkPostagem,
+        status: "Rascunho",
+      });
+      res.status(201).json(creative);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // Edicao em massa (Matriz de Conteudo): aplica o mesmo patch (status e/ou outros
 // campos do formulario, ver CAMPOS_EDICAO_EM_MASSA) a varios criativos de uma vez.

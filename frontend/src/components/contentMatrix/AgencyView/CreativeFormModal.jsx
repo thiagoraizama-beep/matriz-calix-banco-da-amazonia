@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createMatrixCreative, updateMatrixCreative, getCampanhas } from "../../../api/client.js";
+import { createMatrixCreative, createMatrixCreativeRascunho, updateMatrixCreative, deleteMatrixCreative, getCampanhas } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
 
@@ -76,6 +76,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   const [campanhaData, setCampanhaData] = useState([]);
   const [plataformasVeiculo, setPlataformasVeiculo] = useState([]);
   const [campanhaVeiculoId, setCampanhaVeiculoId] = useState(creative?.campanha_veiculo_id || null);
+  const [confirmandoFechar, setConfirmandoFechar] = useState(false);
 
   useEffect(() => {
     getCampanhas()
@@ -150,6 +151,56 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     return null;
   }
 
+  // Monta o FormData comum a criacao/edicao/rascunho -- evita repetir os mesmos
+  // ~20 fd.append em tres lugares. isRascunho pula a normalizacao de URL (nao
+  // faz sentido "corrigir" um campo que o usuario pode nem ter preenchido ainda).
+  function montarFormData({ incluirMidiaExistente }) {
+    const fd = new FormData();
+    if (file) fd.append("file", file);
+    if (!file && incluirMidiaExistente && creative?.cloudinary_url) {
+      fd.append("cloudinaryUrl", creative.cloudinary_url);
+      fd.append("cloudinaryPublicId", creative.cloudinary_public_id);
+      fd.append("tipoMidia", creative.tipo_midia);
+    }
+    const urlDestinoNormalizada = urlDestino.trim() && !/^https?:\/\//i.test(urlDestino.trim())
+      ? `https://${urlDestino.trim()}`
+      : urlDestino.trim();
+    fd.append("nome", nome);
+    fd.append("adName", adName);
+    fd.append("campaignName", campaignName);
+    fd.append("campanha", campanha);
+    fd.append("veiculo", veiculo);
+    fd.append("plataforma", plataforma);
+    fd.append("conjunto", conjunto);
+    fd.append("formato", formato);
+    fd.append("posicionamento", posicionamento);
+    fd.append("urlDestino", urlDestinoNormalizada);
+    fd.append("impulsionado", String(impulsionado));
+    fd.append("linkPostagem", linkPostagem);
+    fd.append("ehPerformance", String(ehPerformance));
+    if (ehPerformance) fd.append("orcamentoProjetado", String(orcamentoCentavos / 100));
+    fd.append("segmentacao", segmentacao);
+    fd.append("titulo", titulo);
+    fd.append("tiposCompra", JSON.stringify(tipoCompra ? [tipoCompra] : []));
+    if (campanhaVeiculoId) fd.append("campanhaVeiculoId", campanhaVeiculoId);
+    if (periodoInicio) fd.append("periodoInicio", periodoInicio);
+    if (periodoFim) fd.append("periodoFim", periodoFim);
+    fd.append("descricao", descricao);
+    fd.append("observacoes", observacoes);
+    return fd;
+  }
+
+  // Ha alguma alteracao que valha perguntar "salvar como rascunho?" ao fechar --
+  // criativo novo com qualquer campo preenchido, ou edicao de um rascunho
+  // existente com qualquer mudanca. Nao dispara em edicao de um criativo ja
+  // "de verdade" (fechar sem salvar ali so descarta a edicao, como sempre foi).
+  const ehRascunhoOuNovo = !isEdit || creative?.status === "Rascunho";
+  const temAlgumCampoPreenchido = Boolean(
+    file || nome.trim() || adName.trim() || campanha || veiculo || plataforma ||
+    conjunto || formato || urlDestino.trim() || linkPostagem.trim() || segmentacao.trim() ||
+    titulo.trim() || tipoCompra || periodoInicio || periodoFim || descricao.trim() || observacoes.trim()
+  );
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -157,66 +208,13 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     const erroValidacao = validarCamposObrigatorios();
     if (erroValidacao) { setError(erroValidacao.mensagem); setCampoInvalido(erroValidacao.campo); return; }
     setSaving(true);
-    const urlDestinoNormalizada = urlDestino.trim() && !/^https?:\/\//i.test(urlDestino.trim())
-      ? `https://${urlDestino.trim()}`
-      : urlDestino.trim();
     try {
       if (isEdit) {
-        const fd = new FormData();
-        if (file) fd.append("file", file);
-        fd.append("nome", nome);
-        fd.append("adName", adName);
-        fd.append("campaignName", campaignName);
-        fd.append("campanha", campanha);
-        fd.append("veiculo", veiculo);
-        fd.append("plataforma", plataforma);
-        fd.append("conjunto", conjunto);
-        fd.append("formato", formato);
-        fd.append("posicionamento", posicionamento);
-        fd.append("urlDestino", urlDestinoNormalizada);
-        fd.append("impulsionado", String(impulsionado));
-        fd.append("linkPostagem", linkPostagem);
-        fd.append("ehPerformance", String(ehPerformance));
-        if (ehPerformance) fd.append("orcamentoProjetado", String(orcamentoCentavos / 100));
-        fd.append("segmentacao", segmentacao);
-        fd.append("titulo", titulo);
-        fd.append("tiposCompra", JSON.stringify(tipoCompra ? [tipoCompra] : []));
-        if (campanhaVeiculoId) fd.append("campanhaVeiculoId", campanhaVeiculoId);
-        if (periodoInicio) fd.append("periodoInicio", periodoInicio);
-        if (periodoFim) fd.append("periodoFim", periodoFim);
-        fd.append("descricao", descricao);
-        fd.append("observacoes", observacoes);
+        const fd = montarFormData({ incluirMidiaExistente: false });
+        if (creative.status === "Rascunho") fd.append("publicarRascunho", "true");
         await updateMatrixCreative(creative.id, fd);
       } else {
-        const fd = new FormData();
-        if (file) fd.append("file", file);
-        if (!file && creative?.cloudinary_url) {
-          fd.append("cloudinaryUrl", creative.cloudinary_url);
-          fd.append("cloudinaryPublicId", creative.cloudinary_public_id);
-          fd.append("tipoMidia", creative.tipo_midia);
-        }
-        fd.append("nome", nome);
-        fd.append("adName", adName);
-        fd.append("campaignName", campaignName);
-        fd.append("campanha", campanha);
-        fd.append("veiculo", veiculo);
-        fd.append("plataforma", plataforma);
-        fd.append("conjunto", conjunto);
-        fd.append("formato", formato);
-        fd.append("posicionamento", posicionamento);
-        fd.append("urlDestino", urlDestinoNormalizada);
-        fd.append("impulsionado", String(impulsionado));
-        fd.append("linkPostagem", linkPostagem);
-        fd.append("ehPerformance", String(ehPerformance));
-        if (ehPerformance) fd.append("orcamentoProjetado", String(orcamentoCentavos / 100));
-        fd.append("segmentacao", segmentacao);
-        fd.append("titulo", titulo);
-        fd.append("tiposCompra", JSON.stringify(tipoCompra ? [tipoCompra] : []));
-        if (campanhaVeiculoId) fd.append("campanhaVeiculoId", campanhaVeiculoId);
-        if (periodoInicio) fd.append("periodoInicio", periodoInicio);
-        if (periodoFim) fd.append("periodoFim", periodoFim);
-        fd.append("descricao", descricao);
-        fd.append("observacoes", observacoes);
+        const fd = montarFormData({ incluirMidiaExistente: true });
         await createMatrixCreative(fd);
       }
       onSaved();
@@ -226,6 +224,49 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSalvarRascunho() {
+    setSaving(true);
+    try {
+      const fd = montarFormData({ incluirMidiaExistente: true });
+      if (isEdit) {
+        await updateMatrixCreative(creative.id, fd);
+      } else {
+        await createMatrixCreativeRascunho(fd);
+      }
+      onSaved();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+      onClose();
+    }
+  }
+
+  function handleFechar() {
+    if (ehRascunhoOuNovo && temAlgumCampoPreenchido) {
+      setConfirmandoFechar(true);
+      return;
+    }
+    onClose();
+  }
+
+  // "Descartar": se ja existe um rascunho salvo no banco (reabriu um pra editar
+  // e decidiu jogar fora), exclui de verdade -- limpa Cloudinary tambem, mesma
+  // rota usada pra exclusao normal. Se e um criativo novo que nunca foi salvo
+  // (nem como rascunho), so fecha -- nao ha nada no banco pra excluir.
+  async function handleDescartar() {
+    if (isEdit && creative?.status === "Rascunho") {
+      try {
+        await deleteMatrixCreative(creative.id);
+        onSaved();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    setConfirmandoFechar(false);
+    onClose();
   }
 
   return (
@@ -240,7 +281,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
           <strong style={{ fontSize: 15 }}>{title}</strong>
-          <button type="button" onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-secondary)", lineHeight: 1 }}>×</button>
+          <button type="button" onClick={handleFechar} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-secondary)", lineHeight: 1 }}>×</button>
         </div>
 
         {/* Impulsionado / Darkpost -- decide o que aparece no campo seguinte:
@@ -515,6 +556,41 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
           {saving ? "Salvando..." : isEdit ? "Salvar alterações" : creative?._duplicate ? "Criar cópia" : "Criar criativo"}
         </button>
       </form>
+
+      {confirmandoFechar && (
+        <div
+          onClick={() => setConfirmandoFechar(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(20,33,61,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 250 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: 360, display: "flex", flexDirection: "column", gap: 14 }}>
+            <strong style={{ fontSize: 15 }}>Alterações não salvas</strong>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)" }}>
+              Você preencheu campos deste criativo mas não confirmou a criação. Quer salvar como rascunho para continuar depois?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                onClick={handleSalvarRascunho}
+                disabled={saving}
+                style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
+              >
+                {saving ? "Salvando..." : "Salvar como rascunho"}
+              </button>
+              <button
+                onClick={handleDescartar}
+                style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--danger)", background: "transparent", color: "var(--danger)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Descartar
+              </button>
+              <button
+                onClick={() => setConfirmandoFechar(false)}
+                style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

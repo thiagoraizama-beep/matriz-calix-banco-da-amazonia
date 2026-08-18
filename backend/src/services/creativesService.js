@@ -73,8 +73,9 @@ export async function listCreatives(user) {
       // (campanha_veiculo_id nulo) caem no fallback por string veiculo+campanha.
       const { rows } = await query(
         `SELECT * FROM creatives
-         WHERE (campanha_veiculo_id = ANY($1))
-            OR (campanha_veiculo_id IS NULL AND veiculo = ANY($2) AND campanha = ANY($3))
+         WHERE status != 'Rascunho'
+           AND ((campanha_veiculo_id = ANY($1))
+            OR (campanha_veiculo_id IS NULL AND veiculo = ANY($2) AND campanha = ANY($3)))
          ORDER BY criado_em DESC`,
         [vinculoIds, veiculos, campanhas]
       );
@@ -82,14 +83,15 @@ export async function listCreatives(user) {
     }
     const { rows } = await query(
       `SELECT * FROM creatives
-       WHERE (campanha_veiculo_id = ANY($1))
-          OR (campanha_veiculo_id IS NULL AND veiculo = ANY($2))
+       WHERE status != 'Rascunho'
+         AND ((campanha_veiculo_id = ANY($1))
+          OR (campanha_veiculo_id IS NULL AND veiculo = ANY($2)))
        ORDER BY criado_em DESC`,
       [vinculoIds, veiculos]
     );
     return rows;
   }
-  const { rows } = await query("SELECT * FROM creatives ORDER BY criado_em DESC");
+  const { rows } = await query("SELECT * FROM creatives WHERE status != 'Rascunho' ORDER BY criado_em DESC");
   return rows;
 }
 
@@ -197,6 +199,20 @@ export async function listCreativesComErro(user) {
   return rows;
 }
 
+// Rascunhos do usuario logado -- escopado por autoria (criado_por), nao por
+// permissao de veiculo/campanha como o resto da Matriz, ja que um rascunho e
+// privado ao autor por definicao (pode nem ter campanha/veiculo preenchidos
+// ainda). Nunca aparece em listCreatives/listCreativesByCampanha (ambos filtram
+// implicitamente por nao ter status='Rascunho' na pratica, ja que esse status
+// nunca e escolhivel via updateStatus -- STATUSES nao o inclui).
+export async function listMeusRascunhos(userId) {
+  const { rows } = await query(
+    `SELECT * FROM creatives WHERE status = 'Rascunho' AND criado_por = $1 ORDER BY atualizado_em DESC`,
+    [userId]
+  );
+  return rows;
+}
+
 // Lista os criativos de UMA campanha especifica (usado pela nova Matriz por
 // campanha, que nunca carrega todos os criativos do sistema de uma vez -- o volume
 // esperado e de milhares de campanhas). Mesmo isolamento de escopo de listCreatives,
@@ -215,9 +231,10 @@ export async function listCreativesByCampanha(user, campanhaId) {
       `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo
        FROM creatives cr
        LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
-       WHERE (cr.campanha_veiculo_id = ANY($1) AND cv.campanha_id = $2)
+       WHERE cr.status != 'Rascunho'
+         AND ((cr.campanha_veiculo_id = ANY($1) AND cv.campanha_id = $2)
           OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($3)
-              AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $2))
+              AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $2)))
        ORDER BY cr.criado_em DESC`,
       [vinculoIds, campanhaId, veiculos]
     );
@@ -227,8 +244,9 @@ export async function listCreativesByCampanha(user, campanhaId) {
     `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo
      FROM creatives cr
      LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
-     WHERE cv.campanha_id = $1
-        OR (cr.campanha_veiculo_id IS NULL AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $1))
+     WHERE cr.status != 'Rascunho'
+       AND (cv.campanha_id = $1
+        OR (cr.campanha_veiculo_id IS NULL AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $1)))
      ORDER BY cr.criado_em DESC`,
     [campanhaId]
   );
@@ -288,6 +306,7 @@ export async function createCreative({
   periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
   urlDestino, impulsionado, segmentacao, titulo, tiposCompra, criadoPor,
   campanhaVeiculoId, linkPostagem, ehPerformance, orcamentoProjetado,
+  status,
 }) {
   // "Impulsionado" parte de um post ja publicado organicamente -- nesse caso o
   // arquivo e opcional (o link da postagem substitui o upload); "Dark Post" nao
@@ -310,32 +329,38 @@ export async function createCreative({
        periodo_inicio, periodo_fim, veiculo, plataforma, formato, posicionamento,
        url_destino, impulsionado, segmentacao, titulo, tipos_compra,
        cloudinary_public_id, cloudinary_url, tipo_midia, criado_por, campanha_veiculo_id,
-       link_postagem, eh_performance, orcamento_projetado)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+       link_postagem, eh_performance, orcamento_projetado, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,COALESCE($27, 'Não registrado'))
      RETURNING *`,
     [
-      nome, adName?.trim() || null, campanha, campaignName || null, conjunto || null,
+      nome || null, adName?.trim() || null, campanha || null, campaignName || null, conjunto || null,
       descricao || null, observacoes || null, periodoInicio || null, periodoFim || null,
-      veiculo, plataforma || null, formato || null, posicionamento || null,
+      veiculo || null, plataforma || null, formato || null, posicionamento || null,
       urlDestino || null, impulsionado !== false, segmentacao || null, titulo || null,
       tiposCompra?.length ? tiposCompra : [],
       publicId, secureUrl, tipoMidia, criadoPor, campanhaVeiculoId || null,
       linkPostagem || null,
       ehPerformance === true || ehPerformance === "true",
       ehPerformance ? (orcamentoProjetado || null) : null,
+      status || null,
     ]
   );
   const creative = rows[0];
 
-  const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
-  await registrarAcao({
-    entidadeTipo: "criativo",
-    entidadeId: creative.id,
-    entidadeNome: creative.nome,
-    campanhaId: campanhaIdLog,
-    acao: "criacao",
-    alteradoPor: criadoPor,
-  });
+  // Rascunho nao entra no log de auditoria -- e um estado transitorio/privado
+  // do autor, nao uma acao relevante pra agencia acompanhar (ainda nao existe
+  // como criativo "de verdade" pros outros usuarios).
+  if (creative.status !== "Rascunho") {
+    const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+    await registrarAcao({
+      entidadeTipo: "criativo",
+      entidadeId: creative.id,
+      entidadeNome: creative.nome,
+      campanhaId: campanhaIdLog,
+      acao: "criacao",
+      alteradoPor: criadoPor,
+    });
+  }
 
   return creative;
 }
@@ -345,7 +370,7 @@ export async function updateCreative(id, {
   nome, adName, campanha, campaignName, conjunto, descricao, observacoes,
   periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
   urlDestino, impulsionado, segmentacao, titulo, tiposCompra, campanhaVeiculoId,
-  linkPostagem, ehPerformance, orcamentoProjetado,
+  linkPostagem, ehPerformance, orcamentoProjetado, publicarRascunho,
 }, alteradoPor = null) {
   // Sempre busca o estado anterior (nao so quando ha arquivo novo) -- usado
   // tanto para a limpeza de midia antiga quanto para o diff do log de auditoria.
@@ -399,6 +424,7 @@ export async function updateCreative(id, {
       link_postagem = $24,
       eh_performance = COALESCE($25, eh_performance),
       orcamento_projetado = $26,
+      status = CASE WHEN status = 'Rascunho' AND $27 = true THEN 'Não registrado' ELSE status END,
       atualizado_em = now()
      WHERE id = $1
      RETURNING *`,
@@ -414,6 +440,7 @@ export async function updateCreative(id, {
       linkPostagem || null,
       ehPerformance !== undefined ? (ehPerformance === true || ehPerformance === "true") : null,
       (ehPerformance === true || ehPerformance === "true") ? (orcamentoProjetado || null) : null,
+      publicarRascunho === true || publicarRascunho === "true",
     ]
   );
 
@@ -476,15 +503,19 @@ export async function deleteCreative(id, alteradoPor = null) {
 
   // Resolve e grava o log ANTES do DELETE -- precisa do creative ainda existir
   // para achar a campanha dona dele (campanha_veiculo_id) e capturar o nome.
-  const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
-  await registrarAcao({
-    entidadeTipo: "criativo",
-    entidadeId: creative.id,
-    entidadeNome: creative.nome,
-    campanhaId: campanhaIdLog,
-    acao: "exclusao",
-    alteradoPor,
-  });
+  // Rascunho descartado nao entra no log, mesmo motivo da criacao (nunca foi
+  // uma acao visivel pra agencia acompanhar).
+  if (creative.status !== "Rascunho") {
+    const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+    await registrarAcao({
+      entidadeTipo: "criativo",
+      entidadeId: creative.id,
+      entidadeNome: creative.nome,
+      campanhaId: campanhaIdLog,
+      acao: "exclusao",
+      alteradoPor,
+    });
+  }
 
   // Criativos "Impulsionado" podem nao ter arquivo (so link_postagem) -- nesse
   // caso cloudinary_public_id fica null, entao nao ha nada a apagar no Cloudinary.

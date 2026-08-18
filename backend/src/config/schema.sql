@@ -84,11 +84,21 @@ ALTER TABLE creatives ADD CONSTRAINT creatives_status_check
 UPDATE creatives SET status = 'Ativo' WHERE status = 'Em veiculação';
 UPDATE creatives SET status = 'Pausado' WHERE status = 'Interrompido';
 
+-- "Rascunho": criativo incompleto, salvo automaticamente quando o usuario fecha
+-- o formulario com alteracoes sem confirmar a criacao -- nao passa pelas
+-- validacoes normais (arquivo/formato/periodo etc podem estar vazios). So o
+-- autor (criado_por) o ve, via lista "Meus rascunhos"; nunca aparece na
+-- grade/Kanban nem para outros usuarios de agencia. Relaxa nome/campanha/veiculo
+-- (antes NOT NULL) para permitir salvar um rascunho bem no inicio do preenchimento.
+ALTER TABLE creatives ALTER COLUMN nome DROP NOT NULL;
+ALTER TABLE creatives ALTER COLUMN campanha DROP NOT NULL;
+ALTER TABLE creatives ALTER COLUMN veiculo DROP NOT NULL;
+
 ALTER TABLE creatives DROP CONSTRAINT IF EXISTS creatives_status_check;
 ALTER TABLE creatives ADD CONSTRAINT creatives_status_check
   CHECK (status IN (
     'Não registrado', 'Em aprovação', 'Aprovado', 'Aguardando implementação',
-    'Programado', 'Ativo', 'Pausado', 'Com erro', 'Finalizado'
+    'Programado', 'Ativo', 'Pausado', 'Com erro', 'Finalizado', 'Rascunho'
   ));
 
 CREATE TABLE IF NOT EXISTS creative_status_history (
