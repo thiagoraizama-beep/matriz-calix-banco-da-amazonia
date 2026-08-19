@@ -412,7 +412,7 @@ export async function updateCreative(id, {
       periodo_inicio = COALESCE($9, periodo_inicio),
       periodo_fim = COALESCE($10, periodo_fim),
       veiculo = COALESCE($11, veiculo),
-      plataforma = $12,
+      plataforma = COALESCE($12, plataforma),
       formato = COALESCE($13, formato),
       posicionamento = COALESCE($14, posicionamento),
       url_destino = $15,

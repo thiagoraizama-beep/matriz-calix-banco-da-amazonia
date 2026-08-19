@@ -616,16 +616,6 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
 
           {abaAtiva === "detalhes" && (
             <>
-              {/* Ad Name */}
-              <Field label="Ad Name *" invalid={campoInvalido === "adName"}>
-                <input
-                  value={adName}
-                  onChange={(e) => setAdName(e.target.value)}
-                  placeholder="Deve bater exatamente com o Ad Name da planilha"
-                  style={inputStyle}
-                />
-              </Field>
-
               {/* Campaign Name (técnico) */}
               <Field label="Campaign Name">
                 <input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} style={inputStyle} placeholder="Ex: BR_CAMPANHA-INSTITUCIONAL-2026_CPM" />
@@ -634,6 +624,16 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
               {/* Conjunto / Ad Group */}
               <Field label="Ad Group">
                 <input value={conjunto} onChange={(e) => setConjunto(e.target.value)} style={inputStyle} />
+              </Field>
+
+              {/* Ad Name */}
+              <Field label="Ad Name *" invalid={campoInvalido === "adName"}>
+                <input
+                  value={adName}
+                  onChange={(e) => setAdName(e.target.value)}
+                  placeholder="Deve bater exatamente com o Ad Name da planilha"
+                  style={inputStyle}
+                />
               </Field>
 
               {/* URL destino */}
