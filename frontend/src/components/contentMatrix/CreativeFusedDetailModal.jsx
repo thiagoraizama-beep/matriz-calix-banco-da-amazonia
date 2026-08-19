@@ -122,6 +122,7 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
       style={{
         position: "fixed", inset: 0, background: "rgba(20,33,61,0.55)", backdropFilter: "blur(2px)",
         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, padding: 16,
+        animation: "creativeModalOverlayIn 0.15s ease-out",
       }}
     >
       <div
@@ -130,6 +131,7 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
           width: 1040, maxWidth: "100%", maxHeight: "calc(100vh - 32px)", overflowY: "auto",
           display: "flex", flexDirection: "column",
           background: "var(--card-bg)", borderRadius: 16, boxShadow: "0 24px 60px rgba(10,16,32,0.35)",
+          animation: "creativeModalIn 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
         {/* Cabecalho: midia em destaque como banner, nome/status sobrepostos por
@@ -191,7 +193,7 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
           ))}
         </div>
 
-        <div style={{ padding: "24px 28px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <div key={aba} style={{ padding: "24px 28px 28px", display: "flex", flexDirection: "column", gap: 24, animation: "creativeTabFadeIn 0.18s ease-out" }}>
           {aba === "implementacao" && (
             <>
               <Section title="Detalhes">
@@ -359,6 +361,20 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
           {aba === "comentarios" && <CommentsTab creativeId={creative.id} somenteLeitura={comentariosSomenteLeitura} />}
         </div>
       </div>
+      <style>{`
+        @keyframes creativeTabFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes creativeModalOverlayIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes creativeModalIn {
+          from { opacity: 0; transform: scale(0.97) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

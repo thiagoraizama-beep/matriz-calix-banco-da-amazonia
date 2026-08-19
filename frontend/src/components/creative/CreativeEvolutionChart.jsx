@@ -64,10 +64,11 @@ export default function CreativeEvolutionChart({ campanhaId, veiculo, adName, fi
             fontSize: 12,
             fontWeight: 600,
             cursor: "pointer",
+            transition: "color 0.2s ease, border-color 0.2s ease, transform 0.15s ease",
           }}
         >
           {selected.label}
-          <span style={{ fontSize: 10 }}>▾</span>
+          <span style={{ fontSize: 10, transition: "transform 0.2s ease", transform: open ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}>▾</span>
         </button>
         {open && (
           <div
@@ -81,6 +82,8 @@ export default function CreativeEvolutionChart({ campanhaId, veiculo, adName, fi
               boxShadow: "0 4px 12px rgba(20,33,61,0.1)",
               overflow: "hidden",
               minWidth: 140,
+              animation: "creativeMetricDropdownIn 0.16s ease-out",
+              transformOrigin: "top right",
             }}
           >
             {METRICS.map((m) => (
@@ -96,13 +99,22 @@ export default function CreativeEvolutionChart({ campanhaId, veiculo, adName, fi
                   cursor: "pointer",
                   color: m.key === metric ? m.color : "var(--text-primary)",
                   fontWeight: m.key === metric ? 600 : 400,
+                  transition: "background 0.15s ease, color 0.15s ease",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
                 {m.label}
               </div>
             ))}
           </div>
         )}
+        <style>{`
+          @keyframes creativeMetricDropdownIn {
+            from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+          }
+        `}</style>
       </div>
 
       {!data ? (
@@ -130,7 +142,18 @@ export default function CreativeEvolutionChart({ campanhaId, veiculo, adName, fi
               labelStyle={{ color: "var(--text-primary)" }}
               itemStyle={{ color: "var(--text-primary)" }}
             />
-            <Area type="monotone" dataKey={metric} stroke={selected.color} strokeWidth={2} fill="url(#creativeMetricFill)" dot={false} />
+            <Area
+              key={metric}
+              type="monotone"
+              dataKey={metric}
+              stroke={selected.color}
+              strokeWidth={2}
+              fill="url(#creativeMetricFill)"
+              dot={false}
+              isAnimationActive
+              animationDuration={450}
+              animationEasing="ease-out"
+            />
           </AreaChart>
         </ResponsiveContainer>
       )}
