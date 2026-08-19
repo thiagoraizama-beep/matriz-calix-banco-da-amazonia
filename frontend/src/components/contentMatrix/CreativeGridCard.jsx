@@ -153,14 +153,16 @@ function ActionsMenu({ creative, onOpenDetail, onEdit, onDuplicate, onDelete, ca
       }}
     >
       <button onClick={() => run(onOpenDetail)} style={menuItemStyle}><EyeIcon /> Ver detalhes</button>
-      <a
-        href={toDownloadUrl(creative.cloudinary_url, buildFilename(creative))}
-        download={buildFilename(creative)}
-        onClick={onClose}
-        style={{ ...menuItemStyle, textDecoration: "none" }}
-      >
-        <DownloadIcon /> Baixar
-      </a>
+      {creative.cloudinary_url && (
+        <a
+          href={toDownloadUrl(creative.cloudinary_url, buildFilename(creative))}
+          download={buildFilename(creative)}
+          onClick={onClose}
+          style={{ ...menuItemStyle, textDecoration: "none" }}
+        >
+          <DownloadIcon /> Baixar
+        </a>
+      )}
       {canEdit && (
         <>
           <button onClick={() => run(onEdit)} style={menuItemStyle}><PencilIcon /> Editar</button>

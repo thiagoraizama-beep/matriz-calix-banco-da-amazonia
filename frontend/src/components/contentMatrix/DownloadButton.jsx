@@ -11,6 +11,7 @@ function buildFilename(creative) {
 }
 
 export default function DownloadButton({ creative, compact }) {
+  if (!creative.cloudinary_url) return null;
   const filename = buildFilename(creative);
   return (
     <a
