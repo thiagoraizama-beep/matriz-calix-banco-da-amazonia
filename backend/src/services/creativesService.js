@@ -426,7 +426,7 @@ export async function updateCreative(id, {
       tipo_midia = COALESCE($23, tipo_midia),
       link_postagem = $24,
       eh_performance = COALESCE($25, eh_performance),
-      orcamento_projetado = $26,
+      orcamento_projetado = CASE WHEN $25 IS NULL THEN orcamento_projetado ELSE $26 END,
       status = CASE WHEN status = 'Rascunho' AND $27 = true THEN 'Não registrado' ELSE status END,
       atualizado_em = now()
      WHERE id = $1
