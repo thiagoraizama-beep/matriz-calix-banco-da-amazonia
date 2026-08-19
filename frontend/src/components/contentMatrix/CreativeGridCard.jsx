@@ -184,6 +184,17 @@ function formatCompact(value) {
 export function OrcamentoBar({ orcamento, investido }) {
   const pct = orcamento > 0 ? Math.min(100, (investido / orcamento) * 100) : 0;
   const estourou = investido > orcamento;
+
+  // A barra nasce em 0% e so anima ate o valor real no proximo frame -- uma
+  // transicao CSS nao dispara quando o elemento ja monta com o width final,
+  // entao sem isso o preenchimento aparecia "estatico" (saltava direto pro
+  // valor, sem crescer visivelmente).
+  const [largura, setLargura] = useState(0);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setLargura(pct));
+    return () => cancelAnimationFrame(frame);
+  }, [pct]);
+
   return (
     <div style={{ padding: "8px 0", borderTop: "1px solid var(--border)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
@@ -196,10 +207,10 @@ export function OrcamentoBar({ orcamento, investido }) {
         <div
           style={{
             height: "100%",
-            width: `${pct}%`,
+            width: `${largura}%`,
             borderRadius: 999,
             background: estourou ? "var(--danger)" : "var(--success)",
-            transition: "width 0.2s ease",
+            transition: "width 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         />
       </div>
