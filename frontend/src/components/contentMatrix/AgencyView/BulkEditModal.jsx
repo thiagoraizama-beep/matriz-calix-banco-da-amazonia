@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { bulkUpdateCreatives } from "../../../api/client.js";
+import { useEffect, useRef, useState } from "react";
+import { bulkUpdateCreatives, getCampanhas, getRegisteredVehicles } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
-import { STATUS_OPTIONS_AGENCIA } from "../statusBadge.jsx";
+import StatusBadge, { STATUS_OPTIONS_AGENCIA } from "../statusBadge.jsx";
 
 const TODOS_FORMATOS = [
   "Feed", "Stories", "Reels", "Carrossel", "Coleção", "Instant Experience", "Messenger",
@@ -29,12 +29,75 @@ const textareaStyle = { ...inputStyle, fontFamily: "inherit", resize: "vertical"
 // campos entre varios criativos diferentes.
 function CampoEmMassa({ label, aplicar, onToggleAplicar, children }) {
   return (
-    <div style={{ opacity: aplicar ? 1 : 0.55 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-secondary)", marginBottom: 5, cursor: "pointer" }}>
+    <div
+      style={{
+        opacity: aplicar ? 1 : 0.55, padding: 12, borderRadius: 10,
+        border: `1px solid ${aplicar ? "var(--accent-soft)" : "var(--border)"}`,
+        background: aplicar ? "var(--accent-soft)" : "transparent",
+        transition: "opacity 0.15s ease, border-color 0.15s ease, background 0.15s ease",
+      }}
+    >
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 600, color: aplicar ? "var(--accent)" : "var(--text-secondary)", marginBottom: 8, cursor: "pointer" }}>
         <input type="checkbox" checked={aplicar} onChange={onToggleAplicar} />
         {label}
       </label>
       <div style={{ pointerEvents: aplicar ? "auto" : "none" }}>{children}</div>
+    </div>
+  );
+}
+
+// Dropdown de status com o mesmo badge colorido usado no card/StatusPopover,
+// em vez do <select> nativo do navegador (sem cor, inconsistente com o resto).
+function StatusSelect({ value, onChange, options }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card-bg)",
+          cursor: "pointer",
+        }}
+      >
+        {value ? <StatusBadge status={value} /> : <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Selecione...</span>}
+        <span style={{ fontSize: 10, color: "var(--text-secondary)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}>▾</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 20,
+            background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(20,33,61,0.15)", padding: 6, maxHeight: 260, overflowY: "auto",
+          }}
+        >
+          {options.map((s) => (
+            <div
+              key={s}
+              onClick={() => { onChange(s); setOpen(false); }}
+              style={{
+                padding: "8px 10px", borderRadius: 7, cursor: "pointer",
+                background: s === value ? "var(--accent-soft)" : "transparent",
+              }}
+              onMouseEnter={(e) => { if (s !== value) e.currentTarget.style.background = "var(--bg)"; }}
+              onMouseLeave={(e) => { if (s !== value) e.currentTarget.style.background = "transparent"; }}
+            >
+              <StatusBadge status={s} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -63,6 +126,16 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState(null);
+
+  // Opcoes reais de Campanha/Veiculo pro SearchSelect -- antes ficavam vazias
+  // (options={[]}), entao na pratica nao dava pra escolher nada nesses dois campos.
+  const [campanhasOptions, setCampanhasOptions] = useState([]);
+  const [veiculosOptions, setVeiculosOptions] = useState([]);
+
+  useEffect(() => {
+    getCampanhas().then((rows) => setCampanhasOptions(rows.map((c) => c.nome))).catch(() => {});
+    getRegisteredVehicles().then((rows) => setVeiculosOptions(rows.map((v) => v.nome))).catch(() => {});
+  }, []);
 
   function toggle(key) {
     setAplicar((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -120,39 +193,59 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(20,33,61,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(20,33,61,0.55)", backdropFilter: "blur(2px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20,
+        animation: "bulkEditOverlayIn 0.15s ease-out",
+      }}
     >
       <form
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="card"
-        style={{ width: 640, maxHeight: "85vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}
+        style={{
+          width: 640, maxHeight: "85vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 18,
+          background: "var(--card-bg)", borderRadius: 18, boxShadow: "0 24px 60px rgba(10,16,32,0.35)", padding: 24,
+          animation: "bulkEditModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong style={{ fontSize: 16 }}>Editar {ids.length} criativo(s) em massa</strong>
-          <button type="button" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "var(--text-secondary)" }}>×</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div>
+            <strong style={{ fontSize: 17, fontWeight: 700 }}>Editar em massa</strong>
+            <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "var(--text-secondary)" }}>
+              {ids.length} criativo{ids.length !== 1 ? "s" : ""} selecionado{ids.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: "50%",
+              border: "none", background: "var(--bg)", cursor: "pointer", color: "var(--text-secondary)", flexShrink: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
-        <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary)" }}>
+        <p style={{ margin: "-8px 0 0", fontSize: 12, color: "var(--text-secondary)" }}>
           Marque os campos que deseja alterar. Só os campos marcados serão aplicados a todos os criativos
           selecionados — os demais permanecem como estão em cada um.
         </p>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <CampoEmMassa label="Status" aplicar={!!aplicar.status} onToggleAplicar={() => toggle("status")}>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} style={inputStyle}>
-              <option value="">Selecione...</option>
-              {STATUS_OPTIONS_AGENCIA.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <StatusSelect value={status} onChange={setStatus} options={STATUS_OPTIONS_AGENCIA} />
           </CampoEmMassa>
 
           <CampoEmMassa label="Campanha" aplicar={!!aplicar.campanha} onToggleAplicar={() => toggle("campanha")}>
-            <SearchSelect value={campanha} onChange={(v) => setCampanha(v || "")} options={[]} placeholder="Nome da campanha" />
+            <SearchSelect value={campanha} onChange={(v) => setCampanha(v || "")} options={campanhasOptions} placeholder="Nome da campanha" />
           </CampoEmMassa>
 
           <CampoEmMassa label="Veículo" aplicar={!!aplicar.veiculo} onToggleAplicar={() => toggle("veiculo")}>
-            <SearchSelect value={veiculo} onChange={(v) => setVeiculo(v || "")} options={[]} placeholder="Nome do veículo" />
+            <SearchSelect value={veiculo} onChange={(v) => setVeiculo(v || "")} options={veiculosOptions} placeholder="Nome do veículo" />
           </CampoEmMassa>
 
           <CampoEmMassa label="Plataforma" aplicar={!!aplicar.plataforma} onToggleAplicar={() => toggle("plataforma")}>
@@ -262,17 +355,23 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
         )}
 
         {resultado && (
-          <p style={{ fontSize: 12, color: resultado.falharam.length > 0 ? "var(--danger)" : "var(--success)", margin: 0 }}>
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 8, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600,
+              background: resultado.falharam.length > 0 ? "rgba(220,38,38,0.1)" : "var(--accent-soft)",
+              color: resultado.falharam.length > 0 ? "var(--danger)" : "var(--accent)",
+            }}
+          >
             {resultado.atualizados.length} criativo(s) atualizado(s)
             {resultado.falharam.length > 0 && `, ${resultado.falharam.length} falharam`}.
-          </p>
+          </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 14, borderTop: "1px solid var(--border)" }}>
           <button
             type="button"
             onClick={onClose}
-            style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, cursor: "pointer" }}
+            style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, cursor: "pointer", transition: "background 0.15s ease" }}
           >
             {resultado && resultado.falharam.length === 0 ? "Fechar" : "Cancelar"}
           </button>
@@ -282,13 +381,23 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
             style={{
               padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff",
               fontSize: 13, fontWeight: 600, cursor: saving || nenhumCampoMarcado ? "default" : "pointer",
-              opacity: saving || nenhumCampoMarcado ? 0.6 : 1,
+              opacity: saving || nenhumCampoMarcado ? 0.6 : 1, transition: "opacity 0.15s ease",
             }}
           >
             {saving ? "Aplicando..." : `Aplicar a ${ids.length} criativo(s)`}
           </button>
         </div>
       </form>
+      <style>{`
+        @keyframes bulkEditOverlayIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes bulkEditModalIn {
+          from { opacity: 0; transform: scale(0.97) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

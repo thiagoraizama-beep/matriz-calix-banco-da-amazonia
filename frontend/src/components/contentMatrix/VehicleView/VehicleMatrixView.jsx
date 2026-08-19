@@ -45,11 +45,32 @@ export default function VehicleMatrixView({ campanhaId } = {}) {
 
   useEffect(() => { load(); }, [campanhaId]);
 
+  // Se o filtro de status estiver ativo e a troca fizer a lista filtrada
+  // ficar vazia (o novo status nao bate mais com nenhum filtro marcado), o
+  // filtro limpa sozinho -- senao a tela fica "filtrando a toa", vazia, sem o
+  // usuario entender por que sumiu tudo so por ter mudado o status de 1 card.
+  function limparFiltroStatusSeEsvaziou(novaLista) {
+    if (filters.status.length === 0) return;
+    const aindaTemAlgo = novaLista.some(
+      (c) =>
+        filters.status.includes(c.status) &&
+        (filters.veiculo.length === 0 || filters.veiculo.includes(c.veiculo)) &&
+        (filters.campanha.length === 0 || filters.campanha.includes(c.campanha)) &&
+        (filters.plataforma.length === 0 || filters.plataforma.includes(c.plataforma)) &&
+        (filters.modeloCompra.length === 0 || (c.tipos_compra || []).some((t) => filters.modeloCompra.includes(t)))
+    );
+    if (!aindaTemAlgo) setStatus([]);
+  }
+
   async function handleStatusChange(id, status) {
     setUpdatingId(id);
     try {
       await updateMatrixCreativeStatus(id, status);
-      setCreatives((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+      setCreatives((prev) => {
+        const next = prev.map((c) => (c.id === id ? { ...c, status } : c));
+        limparFiltroStatusSeEsvaziou(next);
+        return next;
+      });
     } finally {
       setUpdatingId(null);
     }
