@@ -9,11 +9,15 @@ import Spinner from "../components/common/Spinner.jsx";
 import TrashIcon from "../components/common/TrashIcon.jsx";
 import ConfirmDialog from "../components/common/ConfirmDialog.jsx";
 import CreativeFusedDetailModal from "../components/contentMatrix/CreativeFusedDetailModal.jsx";
+import Ga4IntegrationsManagement from "../components/profile/Ga4IntegrationsManagement.jsx";
+import SheetIntegrationsManagement from "../components/profile/SheetIntegrationsManagement.jsx";
 
 const TABS = [
   { id: "criativos", label: "Criativos excluídos" },
   { id: "campanhas", label: "Campanhas excluídas" },
   { id: "historico", label: "Histórico" },
+  { id: "ga4", label: "Integrações GA4" },
+  { id: "planilhas", label: "Integrações de Planilha" },
 ];
 
 // Badge composta "Entidade + acao" (ex: "Campanha excluída", "Criativo
@@ -152,26 +156,30 @@ export default function AdminPage() {
           ))}
         </div>
 
-        <div
-          style={{
-            display: "flex", alignItems: "center", gap: 6, background: "var(--card-bg)",
-            border: "1px solid var(--border)", borderRadius: 999, padding: "8px 14px", width: 260, marginBottom: 10,
-          }}
-        >
-          <span style={{ color: "var(--text-secondary)", display: "flex" }}><SearchIcon /></span>
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar..."
-            style={{ border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--text-primary)", width: "100%" }}
-          />
-        </div>
+        {tab !== "ga4" && tab !== "planilhas" && (
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 6, background: "var(--card-bg)",
+              border: "1px solid var(--border)", borderRadius: 999, padding: "8px 14px", width: 260, marginBottom: 10,
+            }}
+          >
+            <span style={{ color: "var(--text-secondary)", display: "flex" }}><SearchIcon /></span>
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar..."
+              style={{ border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: "var(--text-primary)", width: "100%" }}
+            />
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 20 }}>
         {tab === "criativos" && <ItensTab tipo="creative" busca={busca} />}
         {tab === "campanhas" && <ItensTab tipo="campanha" busca={busca} />}
         {tab === "historico" && <HistoricoTab busca={busca} />}
+        {tab === "ga4" && <Ga4IntegrationsManagement />}
+        {tab === "planilhas" && <SheetIntegrationsManagement />}
       </div>
     </div>
   );

@@ -102,6 +102,7 @@ function normalizeCriativoRow(row, config) {
     videoViews75: parseBRNumber(col(row, config.col_video_views_75)),
     videoCompletions: parseBRNumber(col(row, config.col_video_completions)),
     engajamentos: parseBRNumber(col(row, config.col_engajamentos)),
+    leads: col(row, config.col_leads) === undefined ? null : parseBRNumber(col(row, config.col_leads)),
   };
 }
 

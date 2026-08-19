@@ -181,7 +181,7 @@ function formatCompact(value) {
 // Barra de progresso Orcamento projetado x Investido -- so aparece em criativos
 // marcados como "Performance" (checkbox no cadastro) com orcamento definido. Passa
 // de 100% quando o investido ultrapassa o projetado, sinalizado em vermelho.
-function OrcamentoBar({ orcamento, investido }) {
+export function OrcamentoBar({ orcamento, investido }) {
   const pct = orcamento > 0 ? Math.min(100, (investido / orcamento) * 100) : 0;
   const estourou = investido > orcamento;
   return (

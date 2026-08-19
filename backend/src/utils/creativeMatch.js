@@ -31,14 +31,20 @@ function plataformasAceitas(plataformaCadastrada, subcanaisPorPlataforma) {
 // Nao filtra por formato/posicionamento: o criativo ja e conhecido (nao e busca por
 // Ad Name ambiguo), entao esses campos ja sao especificos o suficiente pra somar
 // as linhas de entrega dele.
+// Criativos marcados "Performance" (creative.eh_performance) pulam o filtro de
+// vendedor/modelo de compra: nesse fluxo o vendor e sempre a propria agencia e a
+// planilha nao tem coluna de Modelo de Compra, entao exigir esses campos so
+// descartava todas as linhas silenciosamente (card ficava zerado mesmo com dado
+// existente na planilha).
 export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma = null) {
   const adNameAlvo = normalizarAdName(creative.ad_name);
   const plataformasValidas = plataformasAceitas(creative.plataforma, subcanaisPorPlataforma);
   return linhasPlanilha.filter((linha) => {
     if (normalizarAdName(linha.adName) !== adNameAlvo) return false;
     if (!plataformasValidas.includes(linha.plataforma)) return false;
-    if (linha.vendedor !== creative.veiculo) return false;
     if (linha.campanha !== creative.campanha) return false;
+    if (creative.eh_performance) return true;
+    if (linha.vendedor !== creative.veiculo) return false;
     if (!creative.tipos_compra?.includes(linha.tipoCompra)) return false;
     return true;
   });

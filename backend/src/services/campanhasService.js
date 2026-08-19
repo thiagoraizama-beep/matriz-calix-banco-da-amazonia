@@ -308,7 +308,7 @@ export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, ma
   const {
     data, campanha, plataforma, vendedor, adName, nomeCriativo, imagemCriativo,
     tipoCompra, posicionamento, investimento, impressoes, cliques,
-    videoViews, videoViews25, videoViews50, videoViews75, videoCompletions, engajamentos,
+    videoViews, videoViews25, videoViews50, videoViews75, videoCompletions, engajamentos, leads,
   } = mapping || {};
 
   const { rows } = await query(
@@ -318,8 +318,8 @@ export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, ma
       col_nome_criativo, col_imagem_criativo, col_tipo_compra, col_posicionamento,
       col_investimento, col_impressoes, col_cliques,
       col_video_views, col_video_views_25, col_video_views_50, col_video_views_75,
-      col_video_completions, col_engajamentos
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      col_video_completions, col_engajamentos, col_leads
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
     ON CONFLICT (campanha_id) DO UPDATE SET
       spreadsheet_id = EXCLUDED.spreadsheet_id,
       sheet_range = EXCLUDED.sheet_range,
@@ -341,6 +341,7 @@ export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, ma
       col_video_views_75 = EXCLUDED.col_video_views_75,
       col_video_completions = EXCLUDED.col_video_completions,
       col_engajamentos = EXCLUDED.col_engajamentos,
+      col_leads = EXCLUDED.col_leads,
       atualizado_em = now()
     RETURNING *`,
     [
@@ -349,7 +350,7 @@ export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, ma
       nomeCriativo || null, imagemCriativo || null, tipoCompra || null, posicionamento || null,
       investimento, impressoes, cliques,
       videoViews || null, videoViews25 || null, videoViews50 || null, videoViews75 || null,
-      videoCompletions || null, engajamentos || null,
+      videoCompletions || null, engajamentos || null, leads || null,
     ]
   );
   return rows[0];

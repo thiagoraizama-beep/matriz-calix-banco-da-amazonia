@@ -241,9 +241,11 @@ CREATE TABLE IF NOT EXISTS campanha_sheets (
   col_video_views_75 TEXT,
   col_video_completions TEXT,
   col_engajamentos TEXT,
+  col_leads TEXT,
   criado_em TIMESTAMP NOT NULL DEFAULT now(),
   atualizado_em TIMESTAMP NOT NULL DEFAULT now()
 );
+ALTER TABLE campanha_sheets ADD COLUMN IF NOT EXISTS col_leads TEXT;
 
 -- Vinculo campanha -> veiculo -> plataformas que aquele veiculo trabalha nesta campanha.
 -- tipo_midia: o escopo de midia do veiculo NESTA campanha especifica, que pode ser mais

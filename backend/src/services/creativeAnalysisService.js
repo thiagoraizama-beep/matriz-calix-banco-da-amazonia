@@ -4,7 +4,7 @@ import { findCreativeByAdName, listCreativesByCampanha } from "./creativesServic
 import { listPlataformas } from "./plataformasService.js";
 import { listCampanhas, getCampanhaById } from "./campanhasService.js";
 import { linhasCasadas, getSubcanaisPorPlataforma } from "../utils/creativeMatch.js";
-import { getSessoesPorUrl, getLeadsPorUrl, getSerieDiariaPorUrls } from "./ga4Service.js";
+import { getSessoesPorUrl, getDuracaoMediaPorUrl, getSerieDiariaPorUrls } from "./ga4Service.js";
 
 function daysAgoISO(n) {
   const d = new Date();
@@ -479,19 +479,27 @@ export async function getPerformancePorCampanha(user, campanhaId) {
       const impressoes = linhas.reduce((acc, l) => acc + l.impressoes, 0);
       const cliques = linhas.reduce((acc, l) => acc + l.cliques, 0);
 
-      // Sessoes/leads (GA4) so sao buscados quando ha URL de destino cadastrada e a
-      // campanha tem Property ID vinculado -- sem isso, ficam null (nao tenta a
+      // Leads/conversoes vem da propria planilha (coluna Leads mapeada em Perfil >
+      // Integrações de Planilha) -- campanhas com formulario nativo da plataforma
+      // (Lead Ads do Meta, Conversoes do Google) nunca geram sessao no site, entao
+      // nao dava pra depender do GA4 pra esse numero. null quando nenhuma linha
+      // casada tem a coluna mapeada (distingue "sem coluna" de "zero leads").
+      const linhasComLeads = linhas.filter((l) => l.leads !== null && l.leads !== undefined);
+      const leads = linhasComLeads.length > 0 ? linhasComLeads.reduce((acc, l) => acc + l.leads, 0) : null;
+
+      // Sessoes (GA4) so sao buscadas quando ha URL de destino cadastrada e a
+      // campanha tem Property ID vinculado -- sem isso, fica null (nao tenta a
       // chamada), distinguindo "sem configuracao" de "zero" no frontend.
       let sessoes = null;
-      let leads = null;
+      let duracaoMediaSessao = null;
       if (propertyId && creative.url_destino) {
         const dataInicio = creative.periodo_inicio
           ? new Date(creative.periodo_inicio).toISOString().slice(0, 10)
           : hoje;
         const dataFim = creative.periodo_fim ? new Date(creative.periodo_fim).toISOString().slice(0, 10) : hoje;
-        [sessoes, leads] = await Promise.all([
+        [sessoes, duracaoMediaSessao] = await Promise.all([
           getSessoesPorUrl(propertyId, creative.url_destino, dataInicio, dataFim),
-          getLeadsPorUrl(propertyId, creative.url_destino, dataInicio, dataFim),
+          getDuracaoMediaPorUrl(propertyId, creative.url_destino, dataInicio, dataFim),
         ]);
       }
 
@@ -500,7 +508,12 @@ export async function getPerformancePorCampanha(user, campanhaId) {
         impressoes,
         cliques,
         ctr: Number(ctr(impressoes, cliques).toFixed(2)),
+        cpm: impressoes > 0 ? Number(((investimento / impressoes) * 1000).toFixed(2)) : 0,
+        cpc: cliques > 0 ? Number((investimento / cliques).toFixed(2)) : 0,
+        cpl: leads > 0 ? Number((investimento / leads).toFixed(2)) : 0,
+        cps: sessoes > 0 ? Number((investimento / sessoes).toFixed(2)) : 0,
         sessoes,
+        duracaoMediaSessao,
         leads,
       };
     })

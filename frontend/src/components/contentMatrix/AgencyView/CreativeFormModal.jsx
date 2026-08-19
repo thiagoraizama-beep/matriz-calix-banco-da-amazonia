@@ -343,16 +343,16 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         </div>
 
         {/* Indicador de progresso (wizard) -- passos numerados, ligados por uma
-            linha; so e possivel clicar pra VOLTAR a um passo ja visitado (indice
-            menor que o atual), avançar exige usar o botao Proximo (que dispara a
-            validacao dos campos daquele passo antes de liberar o seguinte). */}
+            linha, sempre clicaveis em qualquer direcao (ir e voltar livremente).
+            A validacao dos campos obrigatorios so acontece no Salvar final, nao
+            mais bloqueando o avanco entre passos. */}
         <div style={{ display: "flex", alignItems: "center", padding: "18px 24px 0" }}>
           {TABS.map((t, i) => {
             const indiceAtivo = TABS.findIndex((x) => x.id === abaAtiva);
             const temErroNestaAba = campoInvalido && CAMPO_PARA_ABA[campoInvalido] === t.id;
             const concluido = i < indiceAtivo;
             const ativo = t.id === abaAtiva;
-            const podeClicar = i <= indiceAtivo;
+            const podeClicar = true;
             return (
               <div key={t.id} style={{ display: "flex", alignItems: "center", flex: i < TABS.length - 1 ? 1 : "0 0 auto" }}>
                 <button

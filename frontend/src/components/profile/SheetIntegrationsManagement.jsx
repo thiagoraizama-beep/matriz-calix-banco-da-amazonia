@@ -26,6 +26,7 @@ const CAMPOS_MAPEAMENTO = [
   { key: "campanha", label: "Campanha" },
   { key: "vendedor", label: "Veículo (vendor)" },
   { key: "adName", label: "Ad Name" },
+  { key: "leads", label: "Leads" },
   { key: "imagemCriativo", label: "Imagem do Criativo" },
   { key: "tipoCompra", label: "Tipo de Compra" },
   { key: "posicionamento", label: "Posicionamento" },
@@ -65,6 +66,7 @@ function mappingVazio(config) {
     plataforma: config.col_plataforma || "",
     vendedor: config.col_vendedor || "",
     adName: config.col_ad_name || "",
+    leads: config.col_leads || "",
     imagemCriativo: config.col_imagem_criativo || "",
     tipoCompra: config.col_tipo_compra || "",
     posicionamento: config.col_posicionamento || "",
@@ -115,7 +117,7 @@ export default function SheetIntegrationsManagement() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  function abrirEdicao(c) {
+  async function abrirEdicao(c) {
     const config = c.sheetConfig;
     setSpreadsheetInput(config?.spreadsheet_id || "");
     setRangeInput(config?.sheet_range || "");
@@ -124,6 +126,22 @@ export default function SheetIntegrationsManagement() {
     setErroHeaders("");
     setErrorId(null);
     setEditandoId(c.id);
+
+    // Vinculo ja existente: busca as colunas automaticamente, senao o
+    // mapeamento salvo fica escondido ate o usuario clicar "Carregar
+    // colunas" manualmente -- dava a falsa impressao de ter perdido a
+    // configuracao ja feita.
+    if (config?.spreadsheet_id && config?.sheet_range) {
+      setCarregandoHeaders(true);
+      try {
+        const { headers: hs } = await getSheetHeaders(extrairSpreadsheetId(config.spreadsheet_id), config.sheet_range);
+        setHeaders(hs);
+      } catch (err) {
+        setErroHeaders(err.response?.data?.error || "Não foi possível carregar as colunas da planilha");
+      } finally {
+        setCarregandoHeaders(false);
+      }
+    }
   }
 
   function fecharEdicao() {

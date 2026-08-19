@@ -7,8 +7,6 @@ import ChangePasswordForm from "../components/profile/ChangePasswordForm.jsx";
 import VehicleManagement from "../components/profile/VehicleManagement.jsx";
 import CampaignManagement from "../components/profile/CampaignManagement.jsx";
 import PlatformManagement from "../components/profile/PlatformManagement.jsx";
-import Ga4IntegrationsManagement from "../components/profile/Ga4IntegrationsManagement.jsx";
-import SheetIntegrationsManagement from "../components/profile/SheetIntegrationsManagement.jsx";
 import { papelLabel } from "../utils/papelLabel.js";
 
 const TABS_AGENCIA = [
@@ -16,8 +14,6 @@ const TABS_AGENCIA = [
   { id: "plataformas", label: "Plataformas" },
   { id: "campanhas", label: "Campanhas" },
   { id: "usuarios", label: "Usuários" },
-  { id: "ga4", label: "Integrações GA4" },
-  { id: "planilhas", label: "Integrações de Planilha" },
 ];
 
 export default function ProfilePage() {
@@ -235,8 +231,6 @@ export default function ProfilePage() {
             {activeTab === "plataformas" && <PlatformManagement />}
             {activeTab === "campanhas" && <CampaignManagement />}
             {activeTab === "usuarios" && <UserManagement />}
-            {activeTab === "ga4" && <Ga4IntegrationsManagement />}
-            {activeTab === "planilhas" && <SheetIntegrationsManagement />}
           </div>
         </div>
       )}

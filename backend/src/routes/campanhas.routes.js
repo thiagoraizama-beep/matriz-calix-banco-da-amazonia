@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../middleware/auth.js";
+import { requireRole, requireAdmin } from "../middleware/auth.js";
 import {
   listCampanhas,
   listCampanhasHome,
@@ -51,7 +51,7 @@ router.get("/kanban", async (req, res, next) => {
 // E-mail da conta de servico do Google usada para ler o GA4 -- precisa ser adicionada
 // como usuaria (Visualizador) em cada property GA4 vinculada, senao a leitura falha por
 // permissao mesmo com o Property ID certo cadastrado. So o e-mail, nunca a chave privada.
-router.get("/ga4-service-account", requireRole("agencia"), (_req, res) => {
+router.get("/ga4-service-account", requireAdmin, (_req, res) => {
   res.json({ email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null });
 });
 
@@ -59,7 +59,7 @@ router.get("/ga4-service-account", requireRole("agencia"), (_req, res) => {
 // Integrações de Planilha) para popular os dropdowns de mapeamento ANTES de salvar
 // o vinculo -- por isso nao e escopado a uma campanha ainda. Precisa vir antes de
 // qualquer rota "/:id/..." abaixo, senao Express trataria "sheets" como um :id.
-router.post("/sheets/headers", requireRole("agencia"), async (req, res, next) => {
+router.post("/sheets/headers", requireAdmin, async (req, res, next) => {
   try {
     const { spreadsheetId, range } = req.body;
     if (!spreadsheetId || !range) {
@@ -124,7 +124,7 @@ router.patch("/:id/status", requireRole("agencia"), async (req, res, next) => {
 });
 
 // Vincula/desvincula o Property ID do GA4 (Perfil > Integrações GA4).
-router.patch("/:id/ga4", requireRole("agencia"), async (req, res, next) => {
+router.patch("/:id/ga4", requireAdmin, async (req, res, next) => {
   try {
     const { ga4PropertyId } = req.body;
     const updated = await updateGa4PropertyId(req.params.id, ga4PropertyId, req.user.id);
@@ -138,7 +138,7 @@ router.patch("/:id/ga4", requireRole("agencia"), async (req, res, next) => {
 // Cria/atualiza o vinculo de planilha desta campanha (Perfil > Integrações de
 // Planilha). Invalida o cache de serie diaria dela na hora -- uma edicao de
 // mapeamento reflete no proximo carregamento, sem esperar o TTL de 60s.
-router.put("/:id/sheet", requireRole("agencia"), async (req, res, next) => {
+router.put("/:id/sheet", requireAdmin, async (req, res, next) => {
   try {
     const { spreadsheetId, range, mapping } = req.body;
     if (!spreadsheetId || !range || !mapping?.data || !mapping?.plataforma || !mapping?.investimento || !mapping?.impressoes || !mapping?.cliques) {
@@ -155,7 +155,7 @@ router.put("/:id/sheet", requireRole("agencia"), async (req, res, next) => {
 });
 
 // Remove o vinculo de planilha desta campanha.
-router.delete("/:id/sheet", requireRole("agencia"), async (req, res, next) => {
+router.delete("/:id/sheet", requireAdmin, async (req, res, next) => {
   try {
     const deleted = await deleteCampanhaSheet(req.params.id);
     invalidateCache(req.params.id);

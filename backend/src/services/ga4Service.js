@@ -47,6 +47,38 @@ export async function getSessoesPorUrl(propertyId, url, dataInicio, dataFim) {
   }
 }
 
+// Duracao media de sessao (segundos) na URL de destino do criativo, dentro do
+// periodo informado. Mesma semantica de getSessoesPorUrl: null quando faltar
+// property/URL ou em erro da API, para o caller distinguir "sem dado" de "0".
+export async function getDuracaoMediaPorUrl(propertyId, url, dataInicio, dataFim) {
+  if (!propertyId || !url) return null;
+  try {
+    const data = await runReport(propertyId, {
+      dimensions: [{ name: "pagePath" }],
+      metrics: [{ name: "averageSessionDuration" }, { name: "sessions" }],
+      dimensionFilter: {
+        filter: { fieldName: "pagePath", stringFilter: { matchType: "EXACT", value: toPagePath(url) } },
+      },
+      dateRanges: [{ startDate: dataInicio, endDate: dataFim }],
+    });
+    if (!data?.rows?.length) return 0;
+    // Media ponderada pelo numero de sessoes de cada linha (GA4 pode devolver
+    // mais de 1 linha pro mesmo pagePath dependendo de outras dimensoes internas).
+    let totalSessoes = 0;
+    let totalSegundos = 0;
+    for (const row of data.rows) {
+      const sessoes = Number(row.metricValues?.[1]?.value || 0);
+      const duracaoMedia = Number(row.metricValues?.[0]?.value || 0);
+      totalSessoes += sessoes;
+      totalSegundos += duracaoMedia * sessoes;
+    }
+    return totalSessoes > 0 ? totalSegundos / totalSessoes : 0;
+  } catch (err) {
+    console.error("Falha ao buscar duração média de sessão GA4:", err.message);
+    return null;
+  }
+}
+
 // Total de eventos de conversao (nome configurado em GA4_LEAD_EVENT_NAME) na URL
 // de destino do criativo. Sem a env var configurada, nem tenta a chamada -- retorna
 // null imediatamente, que o caller distingue de "0 leads" (evento configurado mas

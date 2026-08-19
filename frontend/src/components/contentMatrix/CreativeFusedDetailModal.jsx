@@ -3,7 +3,8 @@ import StatusBadge from "./statusBadge.jsx";
 import CreativeEvolutionChart from "../creative/CreativeEvolutionChart.jsx";
 import Spinner from "../common/Spinner.jsx";
 import CommentsTab from "./CommentsTab.jsx";
-import { getCreativeByAdName } from "../../api/client.js";
+import { OrcamentoBar } from "./CreativeGridCard.jsx";
+import { getPerformancePorCampanha } from "../../api/client.js";
 
 const EMPTY_FILTERS = {};
 
@@ -37,6 +38,13 @@ function formatCompact(value) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
   return value.toLocaleString("pt-BR");
+}
+
+function formatDuracao(segundos) {
+  const total = Math.round(segundos || 0);
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+  return `${min}m ${String(sec).padStart(2, "0")}s`;
 }
 
 function Section({ title, children }) {
@@ -96,10 +104,10 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
 
   useEffect(() => {
     if (aba !== "performance" || !temPermissaoAnalise || !temAdName || performance !== undefined) return;
-    getCreativeByAdName(campanhaId, creative.plataforma, creative.ad_name, EMPTY_FILTERS)
-      .then(setPerformance)
+    getPerformancePorCampanha(campanhaId)
+      .then((mapa) => setPerformance(mapa[creative.id] || null))
       .catch(() => setPerformance(null));
-  }, [aba, campanhaId, creative.plataforma, creative.ad_name, temPermissaoAnalise, temAdName, performance]);
+  }, [aba, campanhaId, creative.id, temPermissaoAnalise, temAdName, performance]);
 
   function handleCopyUrl() {
     if (!creative.url_destino) return;
@@ -271,18 +279,23 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
                     <KpiCard bg="#eef3ea" color="#2E7D32" value={`${performance.ctr}%`} label="CTR" />
                   </div>
 
+                  {creative.eh_performance && creative.orcamento_projetado > 0 && (
+                    <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={performance.investimento} />
+                  )}
+
                   {/* Metricas de custo/leads variam conforme o modelo de compra do
                       criativo -- CPM so mostra custo por mil, CPC mostra CPC+CPM,
-                      CPL mostra Leads+CPC+CPM (os demais modelos de compra, como
-                      CPV/CPE/CPT/CPF/CPA, nao tem regra especifica ainda, entao nao
-                      exibem nenhuma dessas metricas extras). */}
+                      CPL mostra Leads+Custo por Lead+CPC+CPM (os demais modelos de
+                      compra, como CPV/CPE/CPT/CPF/CPA, nao tem regra especifica
+                      ainda, entao nao exibem nenhuma dessas metricas extras). */}
                   {(() => {
                     const modelo = (creative.tipos_compra || [])[0];
                     const mostrarCpm = modelo === "CPM" || modelo === "CPC" || modelo === "CPL";
                     const mostrarCpc = modelo === "CPC" || modelo === "CPL";
                     const mostrarLeads = modelo === "CPL";
+                    const mostrarCpl = modelo === "CPL";
                     if (!mostrarCpm && !mostrarCpc && !mostrarLeads) return null;
-                    const cols = [mostrarLeads, mostrarCpc, mostrarCpm].filter(Boolean).length;
+                    const cols = [mostrarLeads, mostrarCpl, mostrarCpc, mostrarCpm].filter(Boolean).length;
                     return (
                       <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }}>
                         {mostrarLeads && (
@@ -291,6 +304,14 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
                             color="#00695C"
                             value={performance.leads === null ? (creative.url_destino ? "Não configurado" : "Sem URL de destino") : formatCompact(performance.leads)}
                             label="Leads"
+                          />
+                        )}
+                        {mostrarCpl && (
+                          <KpiCard
+                            bg="#e6efe9"
+                            color="#00695C"
+                            value={!performance.leads ? "—" : `R$ ${performance.cpl.toLocaleString("pt-BR")}`}
+                            label="Custo por Lead"
                           />
                         )}
                         {mostrarCpc && (
@@ -303,12 +324,26 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
                     );
                   })()}
 
-                  <KpiCard
-                    bg="#e8f2ec"
-                    color="#0B6E4F"
-                    value={performance.sessoes === null ? "Sem GA4 vinculado" : formatCompact(performance.sessoes)}
-                    label="Sessões"
-                  />
+                  <div style={{ display: "grid", gridTemplateColumns: performance.sessoes !== null ? "1fr 1fr 1fr" : "1fr", gap: 12 }}>
+                    <KpiCard
+                      bg="#e8f2ec"
+                      color="#0B6E4F"
+                      value={
+                        performance.sessoes !== null
+                          ? formatCompact(performance.sessoes)
+                          : creative.url_destino
+                          ? "Sem GA4 vinculado"
+                          : "Sem URL de destino"
+                      }
+                      label="Sessões"
+                    />
+                    {performance.sessoes !== null && (
+                      <KpiCard bg="#e8f2ec" color="#0B6E4F" value={`R$ ${performance.cps.toLocaleString("pt-BR")}`} label="Custo por Sessão" />
+                    )}
+                    {performance.duracaoMediaSessao !== null && (
+                      <KpiCard bg="#e8f2ec" color="#0B6E4F" value={formatDuracao(performance.duracaoMediaSessao)} label="Tempo Médio de Sessão" />
+                    )}
+                  </div>
 
                   <CreativeEvolutionChart
                     campanhaId={campanhaId}
