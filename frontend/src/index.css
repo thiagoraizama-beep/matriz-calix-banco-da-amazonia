@@ -9,6 +9,8 @@
   --danger: #dc2626;
   --border: #eef0f5;
   --radius: 16px;
+  --card-hover-shadow: 0 6px 20px rgba(20, 33, 61, 0.1);
+  --card-hover-border: transparent;
 }
 
 [data-theme="dark"] {
@@ -21,6 +23,11 @@
   --success: #22c55e;
   --danger: #ef4444;
   --border: #2a3146;
+  /* Uma sombra escura some contra um fundo ja escuro -- o hover usa um
+     brilho verde (na cor do accent) em vez de sombra preta, bem mais
+     visivel, mais a borda no mesmo tom. */
+  --card-hover-shadow: 0 8px 28px -4px rgba(30, 156, 107, 0.35);
+  --card-hover-border: var(--accent);
 }
 
 body {
@@ -154,12 +161,20 @@ select {
   border-radius: var(--radius);
   padding: 20px;
   box-shadow: 0 1px 3px rgba(20, 33, 61, 0.06);
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  border: 1px solid transparent;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
+/* Sem transform aqui de proposito: um card que desloca no hover empurra
+   qualquer popover filho ancorado por position:fixed (ex: StatusPopover,
+   ActionsMenu em CreativeGridCard.jsx, que leem getBoundingClientRect() so
+   uma vez no clique) para fora do lugar, dando a impressao de "bugar"/sumir.
+   Sombra e borda vem de variaveis por tema -- no escuro uma sombra preta
+   comum some contra o fundo ja escuro, entao o hover la usa borda no tom
+   do accent em vez de depender só da sombra. */
 .card:hover {
-  box-shadow: 0 6px 20px rgba(20, 33, 61, 0.1);
-  transform: translateY(-2px);
+  box-shadow: var(--card-hover-shadow);
+  border-color: var(--card-hover-border);
 }
 
 /* Cursor normal por padrao nos cards do Kanban (igual Trello -- so muda pra

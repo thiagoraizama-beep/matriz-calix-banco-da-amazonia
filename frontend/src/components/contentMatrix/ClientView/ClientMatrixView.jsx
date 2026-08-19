@@ -32,8 +32,15 @@ export default function ClientMatrixView({ campanhaId } = {}) {
     }
   }, [campanhaId]);
 
+  // Desmarcar o ultimo item selecionado sai automaticamente do modo de
+  // comparacao -- antes o usuario ficava "preso" na barra de selecao mesmo
+  // com 0 itens marcados, precisando clicar em "Cancelar seleção" a parte.
   function toggleSelect(id) {
-    setSelecionados((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+    setSelecionados((prev) => {
+      const next = prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id];
+      if (next.length === 0) setComparando(false);
+      return next;
+    });
   }
 
   function handleCompararClick() {

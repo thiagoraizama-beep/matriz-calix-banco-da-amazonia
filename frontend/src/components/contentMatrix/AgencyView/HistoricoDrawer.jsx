@@ -21,9 +21,17 @@ const ACAO_PARTICIPIO = {
   exclusao_definitiva: { m: "excluído definitivamente", f: "excluída definitivamente" },
 };
 
+// promocao_admin/revogacao_admin nao seguem o padrao "Entidade + particípio"
+// (nao fazem sentido como "Usuário promovido") -- tem frase propria.
+const ACAO_LABEL_CUSTOM = {
+  promocao_admin: "Promovido a administrador",
+  revogacao_admin: "Administrador removido",
+};
+
 const ENTIDADE_LABEL = { campanha: "Campanha", criativo: "Criativo", usuario: "Usuário" };
 
 function descricaoAcao(acao, entidadeTipo) {
+  if (ACAO_LABEL_CUSTOM[acao]) return ACAO_LABEL_CUSTOM[acao];
   const genero = GENERO_ENTIDADE[entidadeTipo] || "m";
   const participio = ACAO_PARTICIPIO[acao]?.[genero] || acao;
   return `${ENTIDADE_LABEL[entidadeTipo] || entidadeTipo} ${participio}`;
