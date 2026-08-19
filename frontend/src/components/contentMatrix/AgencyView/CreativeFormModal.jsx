@@ -163,7 +163,6 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     if (!plataforma) return { campo: "plataforma", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!tipoCompra) return { campo: "tipoCompra", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!nome.trim()) return { campo: "nome", mensagem: MENSAGEM_CAMPO_PENDENTE };
-    if (!adName.trim()) return { campo: "adName", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!formato) return { campo: "formato", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!periodoInicio || !periodoFim) return { campo: "periodo", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (periodoInicio > periodoFim) return { campo: "periodo", mensagem: "A data inicial não pode ser depois da data final" };
@@ -627,11 +626,11 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
               </Field>
 
               {/* Ad Name */}
-              <Field label="Ad Name *" invalid={campoInvalido === "adName"}>
+              <Field label="Ad Name">
                 <input
                   value={adName}
                   onChange={(e) => setAdName(e.target.value)}
-                  placeholder="Deve bater exatamente com o Ad Name da planilha"
+                  placeholder="Preenchido pelo BI -- deve bater exatamente com o Ad Name da planilha"
                   style={inputStyle}
                 />
               </Field>

@@ -254,8 +254,8 @@ router.post(
       if (!ehImpulsionado && !req.file && !cloudinaryUrl) {
         return res.status(400).json({ error: "Arquivo obrigatório para Dark Post" });
       }
-      if (!nome || !adName || !campanha || !veiculo) {
-        return res.status(400).json({ error: "Campos obrigatórios: nome, adName, campanha, veiculo" });
+      if (!nome || !campanha || !veiculo) {
+        return res.status(400).json({ error: "Campos obrigatórios: nome, campanha, veiculo" });
       }
       if (!formato) {
         return res.status(400).json({ error: "Selecione o formato" });
