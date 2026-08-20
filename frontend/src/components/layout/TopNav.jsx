@@ -17,7 +17,10 @@ import HistoricoDrawer from "../contentMatrix/AgencyView/HistoricoDrawer.jsx";
 import RascunhosModal from "../contentMatrix/AgencyView/RascunhosModal.jsx";
 import { getCreativesAImplementar, getMeusRascunhos } from "../../api/client.js";
 
-const A_IMPLEMENTAR_POLL_MS = 60_000;
+// 20s (era 60s) -- mesmo intervalo do sino de notificacoes, pra nao ter um
+// badge respondendo rapido e outro lento sem motivo.
+const A_IMPLEMENTAR_POLL_MS = 20_000;
+const RASCUNHOS_POLL_MS = 20_000;
 
 const STATUS_KEY_BY_LABEL = Object.fromEntries(STATUS_OPTIONS.map((key) => [STATUS_LABEL[key], key]));
 
@@ -169,7 +172,12 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
     }
     carregar();
     const interval = setInterval(carregar, A_IMPLEMENTAR_POLL_MS);
-    return () => clearInterval(interval);
+    function handleFocus() { carregar(); }
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [user?.papel]);
 
   function carregarRascunhos() {
@@ -177,8 +185,19 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
     getMeusRascunhos().then((lista) => setTotalRascunhos(lista.length)).catch(() => {});
   }
 
+  // Antes so carregava 1x ao montar -- criar um rascunho em outra tela nunca
+  // atualizava o contador sozinho, so recarregando a pagina inteira. Agora
+  // tem polling (mesmo padrao do sino/"A implementar") + refresh ao voltar
+  // pra aba.
   useEffect(() => {
     carregarRascunhos();
+    const interval = setInterval(carregarRascunhos, RASCUNHOS_POLL_MS);
+    function handleFocus() { carregarRascunhos(); }
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [user?.papel]);
 
   function handleNavigate(page) {

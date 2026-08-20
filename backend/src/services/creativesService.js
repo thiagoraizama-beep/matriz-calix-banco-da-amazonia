@@ -3,6 +3,7 @@ import { getCloudinaryClient } from "../config/cloudinary.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 import { scopeVeiculoFilter, scopeCampanhaFilter } from "../utils/scopeFilter.js";
 import { registrarAcao, registrarEdicaoCampos, resolveCampanhaIdDoCreative } from "./actionLogService.js";
+import { registrarOperacaoBulk, COLUNA_POR_CAMPO } from "./bulkEditService.js";
 
 // Rotulos legiveis dos campos editaveis de um criativo, usados pelo log de
 // auditoria (registrarEdicaoCampos) para descrever "Campo: antes -> depois"
@@ -368,13 +369,18 @@ export async function createCreative({
   return creative;
 }
 
+// pularRegistroOperacaoBulk: usado por updateCreativesBulk, que registra 1
+// UNICA operacao desfazivel agrupando todos os criativos afetados, em vez de
+// deixar cada chamada individual daqui dentro do loop criar sua propria
+// operacao "de 1 criativo" (o que fragmentaria uma edicao em massa em N
+// operacoes separadas no painel "Ultimas edições em massa").
 export async function updateCreative(id, {
   file,
   nome, adName, campanha, campaignName, conjunto, descricao, observacoes,
   periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
   urlDestino, impulsionado, segmentacao, titulo, tiposCompra, campanhaVeiculoId,
   linkPostagem, ehPerformance, orcamentoProjetado, publicarRascunho,
-}, alteradoPor = null) {
+}, alteradoPor = null, pularRegistroOperacaoBulk = false) {
   // Sempre busca o estado anterior (nao so quando ha arquivo novo) -- usado
   // tanto para a limpeza de midia antiga quanto para o diff do log de auditoria.
   const creativeAntigo = await getCreativeById(id);
@@ -515,6 +521,19 @@ export async function updateCreative(id, {
       alteradoPor,
       labels: LABELS_CAMPOS_CREATIVE,
     });
+
+    // Registra tambem uma operacao desfazivel (mesma janela de 2h do "Editar
+    // em massa") para a edicao individual -- so quando algum campo mapeado em
+    // COLUNA_POR_CAMPO de fato foi tocado (chaves de camposDepois, que ja
+    // representa exatamente o que veio no patch). O snapshot guarda os
+    // valores BRUTOS de creativeAntigo (colunas reais, nao o texto formatado
+    // usado no diff de auditoria acima), pra poder restaurar de verdade.
+    const camposComColuna = Object.keys(camposDepois).filter((k) => COLUNA_POR_CAMPO[k]);
+    if (!pularRegistroOperacaoBulk && camposComColuna.length > 0 && alteradoPor) {
+      const valoresAntes = {};
+      for (const chave of camposComColuna) valoresAntes[chave] = creativeAntigo[COLUNA_POR_CAMPO[chave]];
+      await registrarOperacaoBulk(alteradoPor, camposComColuna, [{ creativeId: creative.id, valoresAntes }]);
+    }
   }
 
   return creative;
@@ -639,7 +658,7 @@ export async function excluirCreativeDefinitivo(id, alteradoPor = null) {
   return true;
 }
 
-export async function updateStatus(id, novoStatus, user) {
+export async function updateStatus(id, novoStatus, user, pularRegistroOperacaoBulk = false) {
   const validStatuses = user.papel === "veiculo" ? STATUSES_VEICULO : STATUSES;
   if (!validStatuses.includes(novoStatus)) {
     const err = new Error("Status inválido para seu perfil");
@@ -685,6 +704,13 @@ export async function updateStatus(id, novoStatus, user) {
     alteradoPor: user.id,
   });
 
+  // Mudanca de status tambem entra no Desfazer (2h), mesmo padrao dos demais
+  // campos -- cobre o caso de perceber o erro so depois de fechar a tela
+  // (na hora, o status ja e trivialmente reversivel clicando de novo no card).
+  if (!pularRegistroOperacaoBulk) {
+    await registrarOperacaoBulk(user.id, ["status"], [{ creativeId: creative.id, valoresAntes: { status: creative.status } }]);
+  }
+
   return rows[0];
 }
 
@@ -716,20 +742,48 @@ export async function updateCreativesBulk(ids, patch, user) {
   );
   const temCamposRestantes = Object.keys(patchValido).length > 0;
 
+  // Campos do patch que de fato tem uma coluna mapeada (ver COLUNA_POR_CAMPO
+  // em bulkEditService.js), incluindo "status" quando presente -- e o que
+  // vira "campos_alterados" na operacao e o que e capturado no snapshot de
+  // cada criativo, para poder desfazer depois (agrupado numa unica operacao,
+  // nao uma por criativo -- updateStatus/updateCreative pulam seu proprio
+  // registro individual aqui dentro do loop, ver pularRegistroOperacaoBulk).
+  const camposComColuna = Object.keys(patchValido).filter((k) => COLUNA_POR_CAMPO[k]);
+  if (status) camposComColuna.push("status");
+  const snapshots = [];
+
   const atualizados = [];
   const falharam = [];
   for (const id of ids) {
     try {
+      let valoresAntes = null;
+      if (camposComColuna.length > 0) {
+        const antes = await getCreativeById(id);
+        if (antes) {
+          valoresAntes = {};
+          for (const chave of camposComColuna) valoresAntes[chave] = antes[COLUNA_POR_CAMPO[chave]];
+        }
+      }
       let creative = null;
-      if (status) creative = await updateStatus(id, status, user);
-      if (temCamposRestantes) creative = await updateCreative(id, patchValido, user.id);
-      if (creative) atualizados.push(creative);
-      else falharam.push({ id, motivo: "Criativo não encontrado" });
+      if (status) creative = await updateStatus(id, status, user, true);
+      if (temCamposRestantes) creative = await updateCreative(id, patchValido, user.id, true);
+      if (creative) {
+        atualizados.push(creative);
+        if (valoresAntes) snapshots.push({ creativeId: id, valoresAntes });
+      } else {
+        falharam.push({ id, motivo: "Criativo não encontrado" });
+      }
     } catch (err) {
       falharam.push({ id, motivo: err.message || "Falha ao atualizar" });
     }
   }
-  return { atualizados, falharam };
+
+  let operationId = null;
+  if (snapshots.length > 0) {
+    operationId = await registrarOperacaoBulk(user.id, camposComColuna, snapshots);
+  }
+
+  return { atualizados, falharam, operationId };
 }
 
 // Mesma gravacao de updateStatus, mas para o job de sincronizacao automatica

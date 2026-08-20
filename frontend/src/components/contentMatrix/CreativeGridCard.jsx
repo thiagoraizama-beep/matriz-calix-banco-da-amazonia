@@ -220,10 +220,14 @@ export function OrcamentoBar({ orcamento, investido }) {
   );
 }
 
-// Faixa compacta de metricas (Investimento/Impressoes/Cliques/CTR), so renderizada
-// quando a performance ja foi carregada em lote pela view (ver AgencyMatrixView.jsx
-// etc.) -- criativos sem acesso_analise_criativo ou sem ad_name nunca tem entrada no
-// mapa de performance, entao esta faixa simplesmente nao aparece pra eles.
+// Faixa compacta de metricas (Investimento/Impressoes/Cliques/CTR), carregada em
+// lote pela view (ver AgencyMatrixView.jsx etc.). Criativos com acesso_analise_criativo
+// mas ainda sem Ad Name preenchido (campo opcional, preenchido pelo BI depois) ou
+// sem match na planilha nao tem entrada no mapa de performance -- mostram a faixa
+// zerada mesmo assim (METRICAS_ZERADAS), sinalizando "aguardando dados" em vez de
+// sumir a secao inteira. So quando o vinculo nao tem a permissao e que a faixa some.
+const METRICAS_ZERADAS = { investimento: 0, ctr: 0, impressoes: 0, cliques: 0 };
+
 function MetricsRow({ performance }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 10px", padding: "10px 0", borderTop: "1px solid var(--border)" }}>
@@ -416,9 +420,11 @@ export default function CreativeGridCard({
           )}
         </div>
 
-        {!modoKanban && performance && <MetricsRow performance={performance} />}
-        {!modoKanban && creative.eh_performance && creative.orcamento_projetado > 0 && performance && (
-          <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={performance.investimento} />
+        {!modoKanban && creative.acesso_analise_criativo === true && (
+          <MetricsRow performance={performance || METRICAS_ZERADAS} />
+        )}
+        {!modoKanban && creative.eh_performance && creative.orcamento_projetado > 0 && creative.acesso_analise_criativo === true && (
+          <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={(performance || METRICAS_ZERADAS).investimento} />
         )}
       </div>
     </div>

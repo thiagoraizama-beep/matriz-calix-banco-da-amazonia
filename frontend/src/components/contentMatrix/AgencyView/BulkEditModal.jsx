@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { bulkUpdateCreatives, getCampanhas, getRegisteredVehicles } from "../../../api/client.js";
+import { bulkUpdateCreatives, undoBulkEditOperation, getCampanhas, getRegisteredVehicles, getPlataformas } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
 import StatusBadge, { STATUS_OPTIONS_AGENCIA } from "../statusBadge.jsx";
@@ -126,15 +126,19 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState(null);
+  const [desfazendo, setDesfazendo] = useState(false);
+  const [desfeito, setDesfeito] = useState(false);
 
   // Opcoes reais de Campanha/Veiculo pro SearchSelect -- antes ficavam vazias
   // (options={[]}), entao na pratica nao dava pra escolher nada nesses dois campos.
   const [campanhasOptions, setCampanhasOptions] = useState([]);
   const [veiculosOptions, setVeiculosOptions] = useState([]);
+  const [plataformasOptions, setPlataformasOptions] = useState([]);
 
   useEffect(() => {
     getCampanhas().then((rows) => setCampanhasOptions(rows.map((c) => c.nome))).catch(() => {});
     getRegisteredVehicles().then((rows) => setVeiculosOptions(rows.map((v) => v.nome))).catch(() => {});
+    getPlataformas().then((rows) => setPlataformasOptions(rows.map((p) => p.nome))).catch(() => {});
   }, []);
 
   function toggle(key) {
@@ -187,6 +191,24 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
       setError(err.response?.data?.error || "Falha ao aplicar edição em massa");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Reverte a edicao recem-aplicada direto daqui, cobrindo o caso mais comum
+  // (perceber o erro na hora) sem precisar abrir o painel "Ultimas edições".
+  // So aparece quando o backend de fato gerou uma operacao desfazivel
+  // (operationId nao vem quando so status foi alterado, por ex).
+  async function handleDesfazer() {
+    if (!resultado?.operationId) return;
+    setDesfazendo(true);
+    try {
+      await undoBulkEditOperation(resultado.operationId);
+      setDesfeito(true);
+      onSaved();
+    } catch (err) {
+      setError(err.response?.data?.error || "Não foi possível desfazer esta edição.");
+    } finally {
+      setDesfazendo(false);
     }
   }
 
@@ -249,7 +271,7 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
           </CampoEmMassa>
 
           <CampoEmMassa label="Plataforma" aplicar={!!aplicar.plataforma} onToggleAplicar={() => toggle("plataforma")}>
-            <input value={plataforma} onChange={(e) => setPlataforma(e.target.value)} style={inputStyle} />
+            <SearchSelect value={plataforma} onChange={(v) => setPlataforma(v || "")} options={plataformasOptions} placeholder="Nome da plataforma" />
           </CampoEmMassa>
 
           <CampoEmMassa label="Tipo de compra" aplicar={!!aplicar.tipoCompra} onToggleAplicar={() => toggle("tipoCompra")}>
@@ -357,13 +379,31 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
         {resultado && (
           <div
             style={{
-              display: "flex", alignItems: "center", gap: 8, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600,
+              display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
+              borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600,
               background: resultado.falharam.length > 0 ? "rgba(220,38,38,0.1)" : "var(--accent-soft)",
               color: resultado.falharam.length > 0 ? "var(--danger)" : "var(--accent)",
             }}
           >
-            {resultado.atualizados.length} criativo(s) atualizado(s)
-            {resultado.falharam.length > 0 && `, ${resultado.falharam.length} falharam`}.
+            <span>
+              {desfeito
+                ? "Edição desfeita — os criativos voltaram ao estado anterior."
+                : `${resultado.atualizados.length} criativo(s) atualizado(s)${resultado.falharam.length > 0 ? `, ${resultado.falharam.length} falharam` : ""}.`}
+            </span>
+            {resultado.operationId && !desfeito && (
+              <button
+                type="button"
+                onClick={handleDesfazer}
+                disabled={desfazendo}
+                style={{
+                  border: "1px solid var(--accent)", background: "transparent", color: "var(--accent)",
+                  borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700,
+                  cursor: desfazendo ? "default" : "pointer", opacity: desfazendo ? 0.6 : 1,
+                }}
+              >
+                {desfazendo ? "Desfazendo..." : "Desfazer agora"}
+              </button>
+            )}
           </div>
         )}
 

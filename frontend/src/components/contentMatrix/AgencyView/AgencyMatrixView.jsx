@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getMatrixCreatives, getCreativesByCampanha, deleteMatrixCreative, bulkDeleteCreatives, updateMatrixCreativeStatus, syncCampanhaStatus, getPerformancePorCampanha } from "../../../api/client.js";
+import { getMatrixCreatives, getCreativesByCampanha, deleteMatrixCreative, bulkDeleteCreatives, updateMatrixCreativeStatus, syncCampanhaStatus, getPerformancePorCampanha, getBulkEditOperations } from "../../../api/client.js";
 import CreativeFormModal from "./CreativeFormModal.jsx";
 import BulkEditModal from "./BulkEditModal.jsx";
+import BulkEditHistoryPanel from "./BulkEditHistoryPanel.jsx";
+import ActionsRail from "../../common/ActionsRail.jsx";
 import CreativeCardGrid from "../CreativeCardGrid.jsx";
 import CreativeGridCard from "../CreativeGridCard.jsx";
 import CreativeFusedDetailModal from "../CreativeFusedDetailModal.jsx";
@@ -74,6 +76,15 @@ function XIcon() {
   );
 }
 
+function HistoryIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 8v4l3 3" />
+      <circle cx="12" cy="12" r="9" />
+    </svg>
+  );
+}
+
 export default function AgencyMatrixView({ campanhaId } = {}) {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -94,6 +105,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const [selecionados, setSelecionados] = useState([]);
   const [editandoEmMassa, setEditandoEmMassa] = useState(false);
   const [bulkModalAberto, setBulkModalAberto] = useState(false);
+  const [bulkHistoryAberto, setBulkHistoryAberto] = useState(false);
+  const [bulkOperationsCount, setBulkOperationsCount] = useState(0);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [excluindoEmMassa, setExcluindoEmMassa] = useState(false);
   // "grade" (padrao) ou "kanban" (colunas por status, arrastar muda o status)
@@ -114,7 +127,12 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     }
   }
 
+  function loadBulkOperationsCount() {
+    getBulkEditOperations().then((ops) => setBulkOperationsCount(ops.length)).catch(() => {});
+  }
+
   useEffect(() => { load(); }, [campanhaId]);
+  useEffect(() => { loadBulkOperationsCount(); }, [campanhaId]);
 
   // Abertura automatica do modal de detalhe via ?criativo=<id> na URL -- usado
   // ao clicar numa notificacao de mencao no sino (NotificationBell.jsx), que
@@ -196,6 +214,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         limparFiltroStatusSeEsvaziou(next);
         return next;
       });
+      loadBulkOperationsCount();
     } finally {
       setUpdatingId(null);
     }
@@ -249,6 +268,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     setEditandoEmMassa(false);
     setSelecionados([]);
     load();
+    loadBulkOperationsCount();
   }
 
   if (comparativoAberto) {
@@ -326,6 +346,82 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       }}
     >
       {editandoEmMassa ? <XIcon /> : <EditIcon />} {editandoEmMassa ? `Cancelar seleção (${selecionados.length})` : "Editar em massa"}
+    </button>
+  );
+
+  // Lista de acoes pro ActionsRail (barra lateral flutuante colapsavel do
+  // desktop) -- mesmas condicoes/handlers dos botoes horizontais acima, so
+  // reorganizados no formato que o rail espera.
+  const railItems = [
+    !modoSelecaoAtivo && { key: "new", icon: <PlusIcon size={16} />, label: "Novo criativo", onClick: openCreate, tone: "solid" },
+    campanhaId && creatives?.length >= 2 && !comparando && {
+      key: "bulk-edit",
+      icon: editandoEmMassa ? <XIcon /> : <EditIcon />,
+      label: editandoEmMassa ? `Cancelar seleção (${selecionados.length})` : "Editar em massa",
+      onClick: handleEditarEmMassaClick,
+      tone: "accent",
+    },
+    campanhaId && creatives?.length >= 2 && !editandoEmMassa && {
+      key: "compare",
+      icon: comparando ? <XIcon /> : <CompareIcon />,
+      label: comparando ? `Cancelar seleção (${selecionados.length})` : "Comparar",
+      onClick: handleCompararClick,
+      tone: "accent",
+    },
+    comparando && selecionados.length >= 2 && {
+      key: "compare-now",
+      icon: <CompareIcon />,
+      label: `Comparar agora (${selecionados.length})`,
+      onClick: () => setComparativoAberto(true),
+      tone: "solid",
+    },
+    campanhaId && !modoSelecaoAtivo && {
+      key: "sync",
+      icon: <SyncIcon />,
+      label: syncing ? "Sincronizando..." : "Sincronizar status",
+      onClick: handleSync,
+      tone: "accent",
+      disabled: syncing,
+    },
+    campanhaId && creatives?.length >= 1 && {
+      key: "bulk-history",
+      icon: <HistoryIcon />,
+      label: "Últimas edições",
+      onClick: () => setBulkHistoryAberto(true),
+      tone: "default",
+      badge: bulkOperationsCount,
+    },
+    editandoEmMassa && selecionados.length > 0 && {
+      key: "bulk-edit-apply",
+      icon: <EditIcon />,
+      label: `Editar ${selecionados.length} criativo(s)`,
+      onClick: () => setBulkModalAberto(true),
+      tone: "solid",
+    },
+    editandoEmMassa && selecionados.length > 0 && {
+      key: "bulk-delete",
+      icon: <TrashIcon />,
+      label: `Excluir ${selecionados.length} criativo(s)`,
+      onClick: () => setBulkDeleting(true),
+      tone: "danger",
+    },
+  ];
+
+  // Botao discreto pra rever/desfazer as ultimas edicoes (ate 2h) -- cobre
+  // tanto edicao em massa quanto individual (inclusive troca de status),
+  // entao aparece sempre que houver pelo menos 1 criativo na tela, nao so
+  // quando o "Editar em massa" tambem estiver disponivel. Usado no mobile
+  // (o ActionsRail flutuante e so pro desktop).
+  const bulkHistoryButton = campanhaId && creatives?.length >= 1 && (
+    <button
+      onClick={() => setBulkHistoryAberto(true)}
+      title="Últimas edições em massa"
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 999,
+        border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", flexShrink: 0,
+      }}
+    >
+      <HistoryIcon />
     </button>
   );
 
@@ -474,6 +570,12 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     <>
       {modalOpen && <CreativeFormModal creative={editing} onClose={() => setModalOpen(false)} onSaved={load} />}
       {bulkModalAberto && <BulkEditModal ids={selecionados} onClose={() => setBulkModalAberto(false)} onSaved={handleBulkSaved} />}
+      {bulkHistoryAberto && (
+        <BulkEditHistoryPanel
+          onClose={() => setBulkHistoryAberto(false)}
+          onUndone={() => { load(); loadBulkOperationsCount(); }}
+        />
+      )}
       {viewing && (
         <CreativeFusedDetailModal
           creative={viewing}
@@ -518,7 +620,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         <h2 style={{ margin: "16px 0" }}>Matriz de Conteúdo</h2>
         {campanhaId && (
           <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {syncButton}{compareButton}{abrirComparativoButton}{editarEmMassaButton}{editarEmMassaBarra}
+            {syncButton}{compareButton}{abrirComparativoButton}{editarEmMassaButton}{bulkHistoryButton}{editarEmMassaBarra}
           </div>
         )}
         {syncFeedback}
@@ -532,14 +634,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        {syncButton}
-        {compareButton}
-        {abrirComparativoButton}
-        {editarEmMassaButton}
-        {editarEmMassaBarra}
-        {newButton}
-      </div>
+      <ActionsRail items={railItems} />
       {syncResult && <div style={{ textAlign: "right" }}>{syncFeedback}</div>}
       {urgenciaBanner}
       {statusGrid}

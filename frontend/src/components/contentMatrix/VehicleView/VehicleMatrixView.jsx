@@ -11,6 +11,7 @@ import { groupByStatus } from "../statusCounts.js";
 import Spinner from "../../common/Spinner.jsx";
 import useIsMobile from "../../../hooks/useIsMobile.js";
 import { isUrgente } from "../../../utils/urgencia.js";
+import BulkEditHistoryPanel from "../AgencyView/BulkEditHistoryPanel.jsx";
 
 function WarningIcon() {
   return (
@@ -18,6 +19,15 @@ function WarningIcon() {
       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
       <line x1="12" y1="9" x2="12" y2="13" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 8v4l3 3" />
+      <circle cx="12" cy="12" r="9" />
     </svg>
   );
 }
@@ -30,6 +40,7 @@ export default function VehicleMatrixView({ campanhaId } = {}) {
   const [comparando, setComparando] = useState(false);
   const [comparativoAberto, setComparativoAberto] = useState(false);
   const [selecionados, setSelecionados] = useState([]);
+  const [bulkHistoryAberto, setBulkHistoryAberto] = useState(false);
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
   const statusCounts = creatives ? groupByStatus(creatives) : {};
@@ -126,6 +137,21 @@ export default function VehicleMatrixView({ campanhaId } = {}) {
     </button>
   );
 
+  // Cobre a troca de status individual (unica edicao que o veiculo faz) --
+  // mesma janela de 2h pra desfazer, ver BulkEditHistoryPanel.jsx.
+  const bulkHistoryButton = campanhaId && creatives?.length >= 1 && (
+    <button
+      onClick={() => setBulkHistoryAberto(true)}
+      title="Últimas edições"
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 999,
+        border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", flexShrink: 0,
+      }}
+    >
+      <HistoryIcon />
+    </button>
+  );
+
   const statusGrid = creatives && (
     <div className="grid status-grid-4" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 20 }}>
       {Object.entries(statusCounts).map(([status, count]) => (
@@ -183,28 +209,31 @@ export default function VehicleMatrixView({ campanhaId } = {}) {
   );
 
   const modal = viewing && <CreativeFusedDetailModal creative={viewing} campanhaId={campanhaId} onClose={() => setViewing(null)} />;
+  const bulkHistoryPanel = bulkHistoryAberto && <BulkEditHistoryPanel onClose={() => setBulkHistoryAberto(false)} onUndone={load} />;
 
   if (isMobile) {
     return (
       <div>
         <MatrixMobileHeader options={options} filters={filters} setStatus={setStatus} setVeiculo={setVeiculo} setCampanha={setCampanha} setPlataforma={setPlataforma} setModeloCompra={setModeloCompra} />
         <h2 style={{ margin: "16px 0" }}>Meus Criativos</h2>
-        {campanhaId && <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>{compareButton}{abrirComparativoButton}</div>}
+        {campanhaId && <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>{compareButton}{abrirComparativoButton}{bulkHistoryButton}</div>}
         {urgenciaBanner}
         {statusGrid}
         {grid}
         {modal}
+        {bulkHistoryPanel}
       </div>
     );
   }
 
   return (
     <div style={{ paddingTop: 20 }}>
-      {campanhaId && <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>{compareButton}{abrirComparativoButton}</div>}
+      {campanhaId && <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>{compareButton}{abrirComparativoButton}{bulkHistoryButton}</div>}
       {urgenciaBanner}
       {statusGrid}
       {grid}
       {modal}
+      {bulkHistoryPanel}
     </div>
   );
 }

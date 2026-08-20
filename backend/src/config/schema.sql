@@ -448,6 +448,53 @@ CREATE INDEX IF NOT EXISTS idx_comment_mentions_usuario ON comment_mentions(usua
 -- para o texto exibido no sino ("mencionou voce" vs "novo comentario").
 ALTER TABLE comment_mentions ADD COLUMN IF NOT EXISTS eh_mencao_direta BOOLEAN NOT NULL DEFAULT false;
 
+-- Desfazer edicao em massa: cada aplicacao do "Editar em massa" (BulkEditModal)
+-- que toca campos alem de status vira 1 linha aqui, com uma janela de 2h pra
+-- reverter -- sobrevive a fechar o navegador, restrita ao usuario que editou
+-- (nao aparece nem e desfazivel por outros). expira_em calculado na escrita
+-- (criado_em + 2h); desfeita_em marca que ja foi usada (nao pode desfazer 2x).
+-- TIMESTAMPTZ aqui (nao TIMESTAMP como o resto do schema) de proposito: a
+-- sessao do banco converte TIMESTAMP sem tz com um offset de +3h em relacao
+-- a now() puro (bug latente ja existente em todas as outras tabelas, nunca
+-- percebido porque nada comparava now() com um timestamp salvo antes) --
+-- TIMESTAMPTZ nao sofre essa ambiguidade, guarda o instante absoluto certo.
+CREATE TABLE IF NOT EXISTS bulk_edit_operations (
+  id SERIAL PRIMARY KEY,
+  usuario_id INTEGER NOT NULL REFERENCES users(id),
+  campos_alterados TEXT[] NOT NULL,
+  total_criativos INTEGER NOT NULL,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expira_em TIMESTAMPTZ NOT NULL,
+  desfeita_em TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_bulk_edit_operations_usuario ON bulk_edit_operations(usuario_id, expira_em);
+-- Corrige o tipo em bancos onde a tabela ja foi criada como TIMESTAMP (sem
+-- tz) antes desta correcao -- CREATE TABLE IF NOT EXISTS nunca altera o tipo
+-- de uma coluna ja existente. "USING x AT TIME ZONE 'UTC'" reinterpreta o
+-- valor ja gravado (que foi calculado como se UTC fosse local) como UTC de
+-- verdade, sem deslocar o instante que ja estava certo em termos absolutos.
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'bulk_edit_operations' AND column_name = 'criado_em' AND data_type = 'timestamp without time zone'
+  ) THEN
+    ALTER TABLE bulk_edit_operations ALTER COLUMN criado_em TYPE TIMESTAMPTZ USING criado_em AT TIME ZONE 'UTC';
+    ALTER TABLE bulk_edit_operations ALTER COLUMN expira_em TYPE TIMESTAMPTZ USING expira_em AT TIME ZONE 'UTC';
+    ALTER TABLE bulk_edit_operations ALTER COLUMN desfeita_em TYPE TIMESTAMPTZ USING desfeita_em AT TIME ZONE 'UTC';
+  END IF;
+END $$;
+
+-- Snapshot do valor ANTERIOR de cada campo tocado, por criativo afetado --
+-- so os campos que o patch realmente tocou (nao o criativo inteiro), pra
+-- restaurar exatamente o que foi mudado ao desfazer.
+CREATE TABLE IF NOT EXISTS bulk_edit_snapshots (
+  id SERIAL PRIMARY KEY,
+  operation_id INTEGER NOT NULL REFERENCES bulk_edit_operations(id) ON DELETE CASCADE,
+  creative_id INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
+  valores_antes JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bulk_edit_snapshots_operation ON bulk_edit_snapshots(operation_id);
+
 -- Lixeira: usuarios 'agencia' com is_admin=true podem ver/restaurar/excluir
 -- definitivamente itens da lixeira. Nao e um papel novo -- continua 'agencia'
 -- para tudo mais no sistema, so ganha essa permissao extra.

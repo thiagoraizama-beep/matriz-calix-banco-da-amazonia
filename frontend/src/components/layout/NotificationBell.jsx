@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCreativesComErro, getMentionNotifications, markMentionRead } from "../../api/client.js";
 
-const POLL_INTERVAL_MS = 60_000;
+// 20s (era 60s) -- ainda so polling, mas a demora de ate 1 minuto pra um
+// badge novo aparecer incomodava. Some no ato ao reabrir a aba/focar a
+// janela e ao abrir o sino, ver useEffects abaixo.
+const POLL_INTERVAL_MS = 20_000;
 
 function useClickOutside(ref, onOutside) {
   useEffect(() => {
@@ -66,8 +69,20 @@ export default function NotificationBell({ variant = "onImage" }) {
   useEffect(() => {
     carregar();
     const interval = setInterval(carregar, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    // Recarrega ao voltar pra aba (usuario fez algo em outra aba/janela e
+    // voltou) e ao abrir o sino (quer ver o estado mais atual na hora,
+    // nao esperar o proximo tick do polling).
+    function handleFocus() { carregar(); }
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
+
+  useEffect(() => {
+    if (open) carregar();
+  }, [open]);
 
   const mencoesNaoLidas = mencoes.filter((m) => !m.lido);
   const count = criativosComErro.length + mencoesNaoLidas.length;

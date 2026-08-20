@@ -22,6 +22,7 @@ import {
   listMencionaveisPorCreative, listComentariosPorCreative, criarComentario,
   editarComentario, excluirComentario, alternarReacao,
 } from "../services/commentsService.js";
+import { listarOperacoesBulk, desfazerOperacaoBulk } from "../services/bulkEditService.js";
 
 const router = Router();
 const upload = multer({
@@ -149,6 +150,27 @@ router.patch("/bulk", requireRole("agencia"), async (req, res, next) => {
       return res.status(400).json({ error: "Informe ao menos um campo para alterar" });
     }
     const resultado = await updateCreativesBulk(ids, patch, req.user);
+    res.json(resultado);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Ultimas edicoes em massa do usuario logado, ainda dentro da janela de 2h e
+// nao desfeitas -- so essas aparecem no painel "Ultimas edições" da Matriz.
+// Mesmo motivo de ordem de rota das outras acima ("bulk-operations" antes de "/:id").
+router.get("/bulk-operations", requireRole("agencia", "veiculo"), async (req, res, next) => {
+  try {
+    const operacoes = await listarOperacoesBulk(req.user.id);
+    res.json(operacoes);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/bulk-operations/:id/undo", requireRole("agencia", "veiculo"), async (req, res, next) => {
+  try {
+    const resultado = await desfazerOperacaoBulk(req.params.id, req.user.id);
     res.json(resultado);
   } catch (err) {
     next(err);
