@@ -112,7 +112,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   // "grade" (padrao) ou "kanban" (colunas por status, arrastar muda o status)
   // -- estado vem do MatrixFiltersContext (nao mais local) para que a TopNav
   // renderize o toggle dentro do menu do usuario, igual ao Tema.
-  const { visualizacao, setVisualizacao } = useMatrixFiltersContext();
+  const { visualizacao, setVisualizacao, overlayAberto } = useMatrixFiltersContext();
   const [kanbanError, setKanbanError] = useState("");
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
@@ -351,31 +351,29 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
 
   // Lista de acoes pro ActionsRail (barra lateral flutuante colapsavel do
   // desktop) -- mesmas condicoes/handlers dos botoes horizontais acima, so
-  // reorganizados no formato que o rail espera.
+  // reorganizados no formato que o rail espera. As acoes contextuais de um
+  // modo de selecao ja ativo (cancelar, aplicar, excluir) vivem na
+  // selecaoBarra, acima dos cards -- mas o resto do rail (Novo criativo,
+  // Sincronizar, Ultimas edicoes) continua sempre visivel, so os botoes que
+  // iniciam um modo ja ativo somem (nao faz sentido "Comparar" de novo
+  // enquanto ja comparando).
   const railItems = [
-    !modoSelecaoAtivo && { key: "new", icon: <PlusIcon size={16} />, label: "Novo criativo", onClick: openCreate, tone: "solid" },
-    campanhaId && creatives?.length >= 2 && !comparando && {
+    { key: "new", icon: <PlusIcon size={16} />, label: "Novo criativo", onClick: openCreate, tone: "solid" },
+    campanhaId && creatives?.length >= 2 && !comparando && !editandoEmMassa && {
       key: "bulk-edit",
-      icon: editandoEmMassa ? <XIcon /> : <EditIcon />,
-      label: editandoEmMassa ? `Cancelar seleção (${selecionados.length})` : "Editar em massa",
+      icon: <EditIcon />,
+      label: "Editar em massa",
       onClick: handleEditarEmMassaClick,
       tone: "accent",
     },
-    campanhaId && creatives?.length >= 2 && !editandoEmMassa && {
+    campanhaId && creatives?.length >= 2 && !editandoEmMassa && !comparando && {
       key: "compare",
-      icon: comparando ? <XIcon /> : <CompareIcon />,
-      label: comparando ? `Cancelar seleção (${selecionados.length})` : "Comparar",
+      icon: <CompareIcon />,
+      label: "Comparar",
       onClick: handleCompararClick,
       tone: "accent",
     },
-    comparando && selecionados.length >= 2 && {
-      key: "compare-now",
-      icon: <CompareIcon />,
-      label: `Comparar agora (${selecionados.length})`,
-      onClick: () => setComparativoAberto(true),
-      tone: "solid",
-    },
-    campanhaId && !modoSelecaoAtivo && {
+    campanhaId && {
       key: "sync",
       icon: <SyncIcon />,
       label: syncing ? "Sincronizando..." : "Sincronizar status",
@@ -390,20 +388,6 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       onClick: () => setBulkHistoryAberto(true),
       tone: "default",
       badge: bulkOperationsCount,
-    },
-    editandoEmMassa && selecionados.length > 0 && {
-      key: "bulk-edit-apply",
-      icon: <EditIcon />,
-      label: `Editar ${selecionados.length} criativo(s)`,
-      onClick: () => setBulkModalAberto(true),
-      tone: "solid",
-    },
-    editandoEmMassa && selecionados.length > 0 && {
-      key: "bulk-delete",
-      icon: <TrashIcon />,
-      label: `Excluir ${selecionados.length} criativo(s)`,
-      onClick: () => setBulkDeleting(true),
-      tone: "danger",
     },
   ];
 
@@ -527,6 +511,52 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   // Chips de status clicaveis: alem de mostrar a contagem, clicar aplica o
   // filtro de status daquele valor (toggle -- clicar de novo remove) --
   // transforma o resumo num atalho de filtro em vez de so um numero estatico.
+  // Barra contextual que aparece acima dos cards, alinhada a direita, quando
+  // um modo de selecao em lote (comparar ou editar em massa) esta ativo --
+  // antes isso ficava misturado dentro do ActionsRail (a esquerda), longe
+  // dos cards que a selecao afeta.
+  const selecaoBarra = modoSelecaoAtivo && (
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+      <button
+        type="button"
+        onClick={comparando ? handleCompararClick : handleEditarEmMassaClick}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
+          border: `1px solid ${comparando ? COR_COMPARAR : COR_EDITAR_MASSA}`, background: "transparent", color: comparando ? COR_COMPARAR : COR_EDITAR_MASSA,
+        }}
+      >
+        <XIcon /> Cancelar seleção ({selecionados.length})
+      </button>
+      {comparando && selecionados.length >= 2 && (
+        <button
+          type="button"
+          onClick={() => setComparativoAberto(true)}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "none", background: COR_COMPARAR, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+        >
+          <CompareIcon /> Comparar agora ({selecionados.length})
+        </button>
+      )}
+      {editandoEmMassa && selecionados.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setBulkModalAberto(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "none", background: COR_EDITAR_MASSA, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            <EditIcon /> Editar {selecionados.length} criativo(s)
+          </button>
+          <button
+            type="button"
+            onClick={() => setBulkDeleting(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, border: "1px solid var(--danger)", background: "transparent", color: "var(--danger)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
+            <TrashIcon /> Excluir {selecionados.length} criativo(s)
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   const statusGrid = creatives && (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
       {Object.entries(statusCounts).map(([status, count]) => {
@@ -632,11 +662,19 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     );
   }
 
+  // Esconde a barra flutuante enquanto qualquer modal/drawer da tela estiver
+  // aberto -- inclusive o Historico, que a TopNav renderiza fora desta view
+  // (por isso o overlayAberto vem do contexto compartilhado em vez de um
+  // estado local aqui).
+  const algumOverlayAberto = overlayAberto || modalOpen || !!editing || !!deleting || !!viewing
+    || bulkModalAberto || bulkHistoryAberto || !!bulkDeleting || comparativoAberto;
+
   return (
     <div>
-      <ActionsRail items={railItems} />
+      <ActionsRail items={railItems} hidden={algumOverlayAberto} />
       {syncResult && <div style={{ textAlign: "right" }}>{syncFeedback}</div>}
       {urgenciaBanner}
+      {selecaoBarra}
       {statusGrid}
       {visualizacao === "kanban" ? kanbanBoard : grid}
       {modals}

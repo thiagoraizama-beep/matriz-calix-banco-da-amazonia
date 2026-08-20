@@ -19,6 +19,10 @@ export function MatrixFiltersProvider({ children }) {
   // Preferencia Grade/Kanban -- exposta aqui (em vez de estado local na view) para
   // que a TopNav renderize o toggle dentro do menu do usuario, igual ao Tema.
   const [visualizacao, setVisualizacao] = useVisualizacao("matriz-visualizacao");
+  // true quando um overlay de pagina inteira estiver aberto (ex: HistoricoDrawer,
+  // que a TopNav renderiza fora da view) -- usado pelo ActionsRail pra se
+  // esconder em vez de ficar visualmente sobreposto/competindo com o drawer.
+  const [overlayAberto, setOverlayAberto] = useState(false);
 
   return (
     <MatrixFiltersContext.Provider
@@ -31,6 +35,7 @@ export function MatrixFiltersProvider({ children }) {
         modeloCompra, setModeloCompra,
         matrixOptions, setMatrixOptions,
         visualizacao, setVisualizacao,
+        overlayAberto, setOverlayAberto,
       }}
     >
       {children}

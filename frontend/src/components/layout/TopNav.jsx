@@ -153,6 +153,14 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
   const [rascunhosAberto, setRascunhosAberto] = useState(false);
   const [totalRascunhos, setTotalRascunhos] = useState(0);
   const matrixFilters = useMatrixFiltersContext();
+
+  // Avisa o ActionsRail (barra flutuante da Matriz) pra se esconder enquanto
+  // qualquer overlay renderizado AQUI na TopNav (fora da view) estiver
+  // aberto por cima -- Historico, Meus rascunhos, etc.
+  useEffect(() => {
+    matrixFilters?.setOverlayAberto?.(actionLogAberto || rascunhosAberto);
+    return () => matrixFilters?.setOverlayAberto?.(false);
+  }, [actionLogAberto, rascunhosAberto]);
   const campanhasFilters = useCampanhasHomeFiltersContext();
   const matrixLabel = user?.papel === "cliente" ? "Relatório de Criativos" : PAGES.MATRIZ_CONTEUDO;
   const [totalAImplementar, setTotalAImplementar] = useState(0);
