@@ -400,15 +400,30 @@ export async function updateCreative(id, {
     };
   }
 
+  // Campos de texto livre (ad_name, campaign_name, conjunto/Ad Group, descricao,
+  // observacoes) apagam de verdade quando o usuario deixa em branco, mas
+  // continuam intactos quando o campo simplesmente nao veio na edicao (ex:
+  // edicao em massa que nao marcou "Aplicar" naquele campo). Nao da pra
+  // resolver isso so com COALESCE(valor, campo) -- precisa de uma flag por
+  // campo dizendo se ele foi tocado ($xTocado), porque uma vez que o campo e
+  // tocado, string vazia (null) e um valor valido a gravar (apagar), nao um
+  // "use o antigo". Antes todos esses campos usavam COALESCE puro e nunca
+  // conseguiam ser limpos por edicao, so cresciam.
+  const adNameTocado = adName !== undefined;
+  const campaignNameTocado = campaignName !== undefined;
+  const conjuntoTocado = conjunto !== undefined;
+  const descricaoTocado = descricao !== undefined;
+  const observacoesTocado = observacoes !== undefined;
+
   const { rows } = await query(
     `UPDATE creatives SET
       nome = COALESCE($2, nome),
-      ad_name = COALESCE($3, ad_name),
+      ad_name = CASE WHEN $28 THEN $3 ELSE ad_name END,
       campanha = COALESCE($4, campanha),
-      campaign_name = COALESCE($5, campaign_name),
-      conjunto = COALESCE($6, conjunto),
-      descricao = COALESCE($7, descricao),
-      observacoes = COALESCE($8, observacoes),
+      campaign_name = CASE WHEN $29 THEN $5 ELSE campaign_name END,
+      conjunto = CASE WHEN $30 THEN $6 ELSE conjunto END,
+      descricao = CASE WHEN $31 THEN $7 ELSE descricao END,
+      observacoes = CASE WHEN $32 THEN $8 ELSE observacoes END,
       periodo_inicio = COALESCE($9, periodo_inicio),
       periodo_fim = COALESCE($10, periodo_fim),
       veiculo = COALESCE($11, veiculo),
@@ -432,7 +447,11 @@ export async function updateCreative(id, {
      WHERE id = $1
      RETURNING *`,
     [
-      id, nome, adName?.trim() || null, campanha, campaignName, conjunto, descricao, observacoes,
+      id, nome, adNameTocado ? (adName.trim() || null) : null, campanha,
+      campaignNameTocado ? (campaignName.trim() || null) : null,
+      conjuntoTocado ? (conjunto.trim() || null) : null,
+      descricaoTocado ? (descricao.trim() || null) : null,
+      observacoesTocado ? (observacoes.trim() || null) : null,
       periodoInicio, periodoFim, veiculo,
       plataforma || null, formato || null, posicionamento || null, urlDestino || null,
       impulsionado !== undefined ? impulsionado : null,
@@ -444,6 +463,7 @@ export async function updateCreative(id, {
       ehPerformance !== undefined ? (ehPerformance === true || ehPerformance === "true") : null,
       (ehPerformance === true || ehPerformance === "true") ? (orcamentoProjetado || null) : null,
       publicarRascunho === true || publicarRascunho === "true",
+      adNameTocado, campaignNameTocado, conjuntoTocado, descricaoTocado, observacoesTocado,
     ]
   );
 
