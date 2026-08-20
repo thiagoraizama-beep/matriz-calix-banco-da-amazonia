@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import StatusBadge from "./statusBadge.jsx";
 import { labelUrgencia } from "../../utils/urgencia.js";
 
+function formatPeriodo(inicio, fim) {
+  if (!inicio && !fim) return null;
+  const fmt = (iso) => { const [y, m, d] = iso.slice(0, 10).split("-"); return `${d}/${m}/${y}`; };
+  if (inicio && fim) return `${fmt(inicio)} - ${fmt(fim)}`;
+  return fmt(inicio || fim);
+}
+
 function PencilIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -381,6 +388,21 @@ export default function CreativeGridCard({
               </svg>
             )}
           </div>
+        )}
+        {!modoKanban && formatPeriodo(creative.periodo_inicio, creative.periodo_fim) && (
+          <span
+            style={{
+              position: "absolute", bottom: 8, right: 8, display: "flex", alignItems: "center", gap: 3,
+              fontSize: 9.5, fontWeight: 600, color: "#fff", background: "rgba(20,33,61,0.55)",
+              padding: "3px 7px", borderRadius: 999, backdropFilter: "blur(2px)",
+            }}
+          >
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ flexShrink: 0 }}>
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M8 2v4M16 2v4M3 10h18" />
+            </svg>
+            {formatPeriodo(creative.periodo_inicio, creative.periodo_fim)}
+          </span>
         )}
         {statusAnchor && (
           <StatusPopover

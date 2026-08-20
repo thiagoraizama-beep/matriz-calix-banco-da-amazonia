@@ -22,7 +22,7 @@ import {
   listMencionaveisPorCreative, listComentariosPorCreative, criarComentario,
   editarComentario, excluirComentario, alternarReacao,
 } from "../services/commentsService.js";
-import { listarOperacoesBulk, desfazerOperacaoBulk } from "../services/bulkEditService.js";
+import { listarOperacoesBulk, desfazerOperacaoBulk, desfazerItemBulk } from "../services/bulkEditService.js";
 
 const router = Router();
 const upload = multer({
@@ -171,6 +171,16 @@ router.get("/bulk-operations", requireRole("agencia", "veiculo"), async (req, re
 router.post("/bulk-operations/:id/undo", requireRole("agencia", "veiculo"), async (req, res, next) => {
   try {
     const resultado = await desfazerOperacaoBulk(req.params.id, req.user.id);
+    res.json(resultado);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Desfaz so 1 criativo dentro de uma edicao em massa, sem reverter os demais.
+router.post("/bulk-operations/items/:snapshotId/undo", requireRole("agencia", "veiculo"), async (req, res, next) => {
+  try {
+    const resultado = await desfazerItemBulk(req.params.snapshotId, req.user.id);
     res.json(resultado);
   } catch (err) {
     next(err);

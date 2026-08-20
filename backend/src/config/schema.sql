@@ -486,14 +486,18 @@ END $$;
 
 -- Snapshot do valor ANTERIOR de cada campo tocado, por criativo afetado --
 -- so os campos que o patch realmente tocou (nao o criativo inteiro), pra
--- restaurar exatamente o que foi mudado ao desfazer.
+-- restaurar exatamente o que foi mudado ao desfazer. desfeita_em (por item,
+-- separada da desfeita_em da operacao) permite desfazer so 1 criativo dentro
+-- de um lote de edicao em massa, sem reverter os demais.
 CREATE TABLE IF NOT EXISTS bulk_edit_snapshots (
   id SERIAL PRIMARY KEY,
   operation_id INTEGER NOT NULL REFERENCES bulk_edit_operations(id) ON DELETE CASCADE,
   creative_id INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
-  valores_antes JSONB NOT NULL
+  valores_antes JSONB NOT NULL,
+  desfeita_em TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_bulk_edit_snapshots_operation ON bulk_edit_snapshots(operation_id);
+ALTER TABLE bulk_edit_snapshots ADD COLUMN IF NOT EXISTS desfeita_em TIMESTAMPTZ;
 
 -- Lixeira: usuarios 'agencia' com is_admin=true podem ver/restaurar/excluir
 -- definitivamente itens da lixeira. Nao e um papel novo -- continua 'agencia'

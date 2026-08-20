@@ -294,6 +294,10 @@ export function undoBulkEditOperation(operationId) {
   return api.post(`/creatives/bulk-operations/${operationId}/undo`).then((r) => r.data);
 }
 
+export function undoBulkEditItem(snapshotId) {
+  return api.post(`/creatives/bulk-operations/items/${snapshotId}/undo`).then((r) => r.data);
+}
+
 // Exclusao em massa: apaga varios criativos de uma vez.
 export function bulkDeleteCreatives(ids) {
   return api.delete("/creatives/bulk", { data: { ids } }).then((r) => r.data);
