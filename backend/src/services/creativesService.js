@@ -586,8 +586,9 @@ export async function deleteCreative(id, alteradoPor = null) {
   // para achar a campanha dona dele (campanha_veiculo_id) e capturar o nome.
   // Rascunho descartado nao entra no log, mesmo motivo da criacao (nunca foi
   // uma acao visivel pra agencia acompanhar).
+  let campanhaIdLog = null;
   if (creative.status !== "Rascunho") {
-    const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+    campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
     await registrarAcao({
       entidadeTipo: "criativo",
       entidadeId: creative.id,
@@ -596,13 +597,18 @@ export async function deleteCreative(id, alteradoPor = null) {
       acao: "exclusao",
       alteradoPor,
     });
-    await agendarSyncSheet(campanhaIdLog);
   }
 
   await query(
     "UPDATE creatives SET excluido_em = now(), excluido_por = $2 WHERE id = $1",
     [id, alteradoPor]
   );
+
+  // Sincroniza DEPOIS do UPDATE -- listCreativesByCampanha (usado dentro da
+  // sincronizacao) filtra excluido_em IS NULL, entao rodar antes do UPDATE
+  // ainda veria o criativo como ativo e manteria a linha na planilha.
+  if (campanhaIdLog) await agendarSyncSheet(campanhaIdLog);
+
   return true;
 }
 
