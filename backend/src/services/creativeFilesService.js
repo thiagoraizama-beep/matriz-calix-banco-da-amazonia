@@ -1,12 +1,13 @@
-import { createRequire } from "module";
+import { ZipArchive } from "archiver";
 import { query } from "../config/database.js";
 import { getCloudinaryClient } from "../config/cloudinary.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 
-const require = createRequire(import.meta.url);
 // archiver@8 nao exporta mais uma funcao factory default -- e um namespace
 // com as classes ZipArchive/TarArchive/JsonArchive, instanciadas direto.
-const { ZipArchive } = require("archiver");
+// Import ESM direto (nao createRequire) -- em producao na Vercel o bundler
+// so expoe o entry ESM do pacote, e require() de um modulo ESM puro
+// quebra com ERR_REQUIRE_ESM (derrubava toda a API, incluindo login).
 
 // Arquivos ADICIONAIS de um criativo (ex: varios tamanhos de banner do mesmo
 // anuncio Display) -- separado de creatives.cloudinary_url/public_id/tipo_midia,
