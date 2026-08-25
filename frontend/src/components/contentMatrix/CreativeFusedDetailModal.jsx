@@ -306,7 +306,12 @@ export default function CreativeFusedDetailModal({
                 </Section>
               )}
 
-              {creative.formato?.includes("Search") && creative.search_campos && (
+              {creative.search_campos && (
+                creative.search_campos.titulo?.length > 0
+                || creative.search_campos.tituloLongo?.length > 0
+                || creative.search_campos.texto?.length > 0
+                || creative.search_campos.palavrasChave
+              ) && (
                 <Section title="Google Search">
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {creative.search_campos.titulo?.length > 0 && (

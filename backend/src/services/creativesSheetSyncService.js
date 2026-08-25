@@ -78,7 +78,10 @@ export async function setSheetSyncSelecao(campanhaId, creativeIds) {
 // formato de array de arrays (linha por linha) pra values.update. peca usa
 // =IMAGE() quando ha midia -- precisa de valueInputOption "USER_ENTERED"
 // pra ser interpretada como formula, nao texto literal.
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
+// Backend e frontend ficam no MESMO dominio em producao (vercel.json roteia
+// /api/* pro backend) -- reaproveita FRONTEND_URL (ja configurada na Vercel)
+// em vez de exigir uma env var propria so pra isso.
+const BACKEND_URL = process.env.FRONTEND_URL || "http://localhost:4000";
 
 function valoresDaLinha(c, colunas) {
   const temUnicoFormatoSearch = Array.isArray(c.formato) && c.formato.length === 1 && c.formato[0] === "Search";

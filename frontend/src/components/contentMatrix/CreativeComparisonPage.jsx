@@ -51,17 +51,39 @@ const METRICAS_GRAFICO = [
 // identifica o criativo, o tracejado identifica a metrica.
 const TRACOS = ["0", "6 3", "2 3", "8 3 2 3"];
 
+// Mesma regra de "quais metricas de custo/leads fazem sentido pro modelo de
+// compra do criativo" do CreativeFusedDetailModal.jsx (aba Performance de 1
+// criativo) -- cumulativa: CPM so mostra CPM, CPC mostra CPC+CPM, CPL mostra
+// Leads+Custo por Lead+CPC+CPM. So usa o primeiro tipo de compra cadastrado
+// (tipos_compra[0]), mesma limitacao do modal. Os demais modelos (CPV/CPE/
+// CPT/CPF/CPA) nao tem regra especifica ainda -- ficam "-" nessas linhas.
+function metricasDeCustoAtivas(creative) {
+  const modelo = (creative?.tipos_compra || [])[0];
+  return {
+    cpm: modelo === "CPM" || modelo === "CPC" || modelo === "CPL",
+    cpc: modelo === "CPC" || modelo === "CPL",
+    leads: modelo === "CPL",
+    cpl: modelo === "CPL",
+  };
+}
+
 const METRIC_ROWS = [
   { key: "investimento", label: "Investimento", format: (v) => `R$ ${(v || 0).toLocaleString("pt-BR")}` },
   { key: "impressoes", label: "Impressões", format: formatCompact },
   { key: "cliques", label: "Cliques", format: formatCompact },
   { key: "ctr", label: "CTR", format: (v) => `${v || 0}%` },
+  { key: "cpm", label: "CPM", format: (v) => `R$ ${(v || 0).toLocaleString("pt-BR")}`, ativa: (c) => metricasDeCustoAtivas(c).cpm },
+  { key: "cpc", label: "CPC", format: (v) => `R$ ${(v || 0).toLocaleString("pt-BR")}`, ativa: (c) => metricasDeCustoAtivas(c).cpc },
   { key: "sessoes", label: "Sessões", format: formatCompact },
-  { key: "leads", label: "Leads", format: formatCompact },
+  { key: "leads", label: "Leads", format: formatCompact, ativa: (c) => metricasDeCustoAtivas(c).leads },
+  { key: "cpl", label: "Custo por Lead", format: (v) => `R$ ${(v || 0).toLocaleString("pt-BR")}`, ativa: (c) => metricasDeCustoAtivas(c).cpl },
 ];
 
-function melhorIndice(totais, key) {
-  const valores = totais.map((t) => t?.[key]);
+// aplicaveis: mascara opcional (mesmo indice de totais) pra ignorar
+// criativos onde a metrica nao se aplica (ex: CPM numa linha comparando um
+// criativo CPC com um CPL -- CPL nao mostra CPM).
+function melhorIndice(totais, key, aplicaveis) {
+  const valores = totais.map((t, i) => (aplicaveis && !aplicaveis[i] ? undefined : t?.[key]));
   const positivos = valores.filter((v) => typeof v === "number" && v > 0);
   if (positivos.length === 0) return -1;
   return valores.indexOf(Math.max(...positivos));
@@ -149,13 +171,15 @@ export default function CreativeComparisonPage({ creatives, performanceMap, camp
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", rowGap: 6, columnGap: 10 }}>
                     {METRIC_ROWS.map((m) => {
-                      const melhor = melhorIndice(totais, m.key);
-                      const diff = i > 0 ? diffPercent(total?.[m.key], referencia?.[m.key]) : null;
+                      const aplicaveis = creatives.map((c) => !m.ativa || m.ativa(c));
+                      const seAplica = aplicaveis[i];
+                      const melhor = melhorIndice(totais, m.key, aplicaveis);
+                      const diff = i > 0 && seAplica && aplicaveis[0] ? diffPercent(total?.[m.key], referencia?.[m.key]) : null;
                       return (
                         <div key={m.key} style={{ display: "contents" }}>
                           <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{m.label}</span>
                           <span style={{ fontSize: 12, fontWeight: i === melhor ? 700 : 400, color: i === melhor ? "var(--success)" : "var(--text-primary)", textAlign: "right" }}>
-                            {m.format(total?.[m.key])}
+                            {seAplica ? m.format(total?.[m.key]) : "—"}
                           </span>
                           <span style={{ fontSize: 11, fontWeight: 600, textAlign: "right", color: diff !== null && Number.isFinite(diff) ? (diff >= 0 ? "var(--success)" : "var(--danger)") : "var(--text-secondary)" }}>
                             {i === 0 ? "" : diff !== null && Number.isFinite(diff) ? `${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff).toFixed(1)}%` : "—"}
@@ -197,18 +221,21 @@ export default function CreativeComparisonPage({ creatives, performanceMap, camp
             </thead>
             <tbody>
               {METRIC_ROWS.map((m) => {
-                const melhor = melhorIndice(totais, m.key);
+                const aplicaveis = creatives.map((c) => !m.ativa || m.ativa(c));
+                const melhor = melhorIndice(totais, m.key, aplicaveis);
                 const referencia = totais[0]?.[m.key];
                 return (
                   <tr key={m.key}>
                     <td style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{m.label}</td>
                     {totais.map((total, i) => {
-                      const diff = i > 0 ? diffPercent(total?.[m.key], referencia) : null;
+                      const seAplica = aplicaveis[i];
+                      const diff = i > 0 && seAplica && aplicaveis[0] ? diffPercent(total?.[m.key], referencia) : null;
                       const valorStyle = { fontWeight: i === melhor ? 700 : 400, color: i === melhor ? "var(--success)" : "var(--text-primary)" };
-                      if (i === 0) return <td key={creatives[i].id} style={valorStyle}>{m.format(total?.[m.key])}</td>;
+                      const valorExibido = seAplica ? m.format(total?.[m.key]) : "—";
+                      if (i === 0) return <td key={creatives[i].id} style={valorStyle}>{valorExibido}</td>;
                       return (
                         <>
-                          <td key={`${creatives[i].id}-v`} style={valorStyle}>{m.format(total?.[m.key])}</td>
+                          <td key={`${creatives[i].id}-v`} style={valorStyle}>{valorExibido}</td>
                           <td
                             key={`${creatives[i].id}-d`}
                             style={{ fontSize: 12, fontWeight: 600, color: diff !== null && Number.isFinite(diff) ? (diff >= 0 ? "var(--success)" : "var(--danger)") : "var(--text-secondary)" }}
