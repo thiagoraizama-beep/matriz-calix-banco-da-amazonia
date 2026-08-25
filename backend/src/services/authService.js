@@ -80,6 +80,24 @@ export function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
+// Token separado do login, SEM expiracao -- escopado so pra baixar os
+// arquivos de UM criativo especifico, usado no link "Link da peça" do Excel
+// exportado (precisa funcionar clicando direto, o navegador que abre o
+// Excel nao tem o cookie de sessao do app). Nao concede acesso a mais nada
+// alem do download desse unico criativo -- nao serve pra entrar na Matriz,
+// listar campanhas, nem ver outros criativos.
+export function gerarTokenDownload(creativeId) {
+  return jwt.sign({ tipo: "download-creative", creativeId }, JWT_SECRET);
+}
+
+export function verificarTokenDownload(token, creativeId) {
+  const payload = jwt.verify(token, JWT_SECRET);
+  if (payload.tipo !== "download-creative" || String(payload.creativeId) !== String(creativeId)) {
+    throw new Error("Token inválido para este criativo");
+  }
+  return true;
+}
+
 export async function createUser({ email, senha, nome, papel, veiculos, parceiroId }, criadoPor = null) {
   const passwordHash = await bcrypt.hash(senha, 10);
 

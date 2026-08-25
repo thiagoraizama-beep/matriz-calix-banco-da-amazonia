@@ -23,6 +23,14 @@ import {
   editarComentario, excluirComentario, alternarReacao,
 } from "../services/commentsService.js";
 import { listarOperacoesBulk, desfazerOperacaoBulk, desfazerItemBulk } from "../services/bulkEditService.js";
+import { gerarExportacaoMatriz, listPlataformasDaCampanha } from "../services/creativesExportService.js";
+import { listFilesByCreative, addCreativeFiles, removeCreativeFile, gerarZipDoCreative, definirCapa } from "../services/creativeFilesService.js";
+import {
+  getCampanhaSheetSyncConfig, upsertCampanhaSheetSync, getSheetSyncSelecao,
+  setSheetSyncSelecao, sincronizarCampanha,
+} from "../services/creativesSheetSyncService.js";
+import { getExportConfig, setExportConfig } from "../services/creativesColumnsConfigService.js";
+import { COLUNAS_BASE, COLUNAS_GOOGLE } from "../services/creativesExportService.js";
 
 const router = Router();
 const upload = multer({
@@ -187,9 +195,183 @@ router.post("/bulk-operations/items/:snapshotId/undo", requireRole("agencia", "v
   }
 });
 
+// Plataformas disponiveis pra exportar, usado pra popular o menu de selecao
+// antes de baixar o Excel. Mesmo motivo de ordem de rota das outras acima.
+router.get("/export/:campanhaId/plataformas", async (req, res, next) => {
+  try {
+    res.json(await listPlataformasDaCampanha(req.user, req.params.campanhaId));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Exporta os criativos de uma campanha em Excel, uma aba por plataforma/canal
+// -- mesmo escopo de visibilidade de listCreativesByCampanha (respeitando
+// papel/vinculos do usuario). "plataformas" (query, repetida) filtra so os
+// canais escolhidos -- sem o parametro, exporta todos. Sempre xlsx puro --
+// criativos com multiplos arquivos tem seu proprio link de zip na coluna
+// "Link da peça" (ver GET /:id/files/zip), a exportacao da campanha nao
+// empacota tudo junto. Precisa vir antes de "/:id/..." pelo mesmo motivo das
+// outras rotas especificas acima.
+router.get("/export/:campanhaId", async (req, res, next) => {
+  try {
+    const plataformas = req.query.plataformas
+      ? (Array.isArray(req.query.plataformas) ? req.query.plataformas : [req.query.plataformas])
+      : null;
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const { buffer } = await gerarExportacaoMatriz(req.user, req.params.campanhaId, plataformas, baseUrl);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="matriz-de-conteudo-${req.params.campanhaId}.xlsx"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Estado atual do "Gerar planilha" pra uma campanha: config da planilha
+// vinculada (se houver) + quais creative_id estao marcados hoje -- usado pra
+// pre-marcar os checkboxes quando o modal reabre. Precisa vir antes de
+// "/:id/..." pelo mesmo motivo das outras rotas especificas acima.
+router.get("/sheet-sync/:campanhaId", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const [config, selecionados] = await Promise.all([
+      getCampanhaSheetSyncConfig(req.params.campanhaId),
+      getSheetSyncSelecao(req.params.campanhaId),
+    ]);
+    res.json({
+      spreadsheetId: config?.spreadsheet_id || null,
+      ultimaSincronizacaoEm: config?.ultima_sincronizacao_em || null,
+      ultimoErro: config?.ultimo_erro || null,
+      selecionados,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Salva a selecao marcada no modal "Gerar planilha" e sincroniza na hora --
+// desmarcar um criativo que ja estava la remove a linha dele na mesma
+// chamada. Se spreadsheetId vier vazio, so atualiza a selecao (sem planilha
+// vinculada ainda nada e escrito -- fica pronto pra quando o usuario colar o link).
+router.put("/sheet-sync/:campanhaId", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const { spreadsheetId, creativeIds } = req.body;
+    if (spreadsheetId) {
+      await upsertCampanhaSheetSync(req.params.campanhaId, spreadsheetId);
+    }
+    const selecionados = await setSheetSyncSelecao(req.params.campanhaId, creativeIds);
+    const config = await getCampanhaSheetSyncConfig(req.params.campanhaId);
+    if (config?.spreadsheet_id) {
+      await sincronizarCampanha(req.params.campanhaId);
+    }
+    const configAtualizada = await getCampanhaSheetSyncConfig(req.params.campanhaId);
+    res.json({
+      spreadsheetId: configAtualizada?.spreadsheet_id || null,
+      ultimaSincronizacaoEm: configAtualizada?.ultima_sincronizacao_em || null,
+      ultimoErro: configAtualizada?.ultimo_erro || null,
+      selecionados,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Colunas disponiveis (base + so-Google) e a config atual de colunas por
+// plataforma/criativo da campanha -- popula a secao "Colunas" do modal
+// "Gerar planilha". Precisa vir antes de "/:id/..." pelo mesmo motivo das
+// outras rotas especificas acima.
+router.get("/export-config/:campanhaId", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const config = await getExportConfig(req.params.campanhaId);
+    res.json({
+      colunasBase: COLUNAS_BASE.map(({ key, header }) => ({ key, header })),
+      colunasGoogle: COLUNAS_GOOGLE.map(({ key, header }) => ({ key, header })),
+      config,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put("/export-config/:campanhaId", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const config = await setExportConfig(req.params.campanhaId, req.body.config || {});
+    res.json({ config });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/:id/history", async (req, res, next) => {
   try {
     res.json(await getStatusHistory(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Arquivos adicionais de um criativo (ex: varios tamanhos de banner do mesmo
+// anuncio Display) -- separado do arquivo principal (upload de sempre).
+router.get("/:id/files", async (req, res, next) => {
+  try {
+    res.json(await listFilesByCreative(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Baixa TODOS os arquivos do criativo (principal + extras) -- usado pelo
+// botao "Baixar" do card quando ha mais de 1 arquivo (senao o link direto
+// pro cloudinary_url, ja usado hoje, so trazia o arquivo principal).
+router.get("/:id/files/zip", async (req, res, next) => {
+  try {
+    const creative = await getCreativeById(req.params.id);
+    if (!creative) return res.status(404).json({ error: "Criativo não encontrado" });
+    const buffer = await gerarZipDoCreative(creative);
+    const nomeBase = (creative.titulo || creative.nome || `criativo-${creative.id}`).replace(/[\\/:*?"<>|]/g, "-");
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${nomeBase}.zip"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post(
+  "/:id/files",
+  requireRole("agencia"),
+  (req, res, next) => upload.array("files", 20)(req, res, handleUploadErrors(req, res, next)),
+  async (req, res, next) => {
+    try {
+      if (!req.files?.length) {
+        return res.status(400).json({ error: "Envie ao menos um arquivo" });
+      }
+      res.status(201).json(await addCreativeFiles(req.params.id, req.files));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.delete("/:id/files/:fileId", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const removido = await removeCreativeFile(req.params.fileId);
+    if (!removido) return res.status(404).json({ error: "Arquivo não encontrado" });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Troca qual arquivo e a capa/preview do criativo (promove um extra pra
+// principal, o principal atual desce pra extra).
+router.patch("/:id/files/:fileId/capa", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const creative = await getCreativeById(req.params.id);
+    if (!creative) return res.status(404).json({ error: "Criativo não encontrado" });
+    const atualizado = await definirCapa(creative, req.params.fileId);
+    if (!atualizado) return res.status(404).json({ error: "Arquivo não encontrado" });
+    res.json(atualizado);
   } catch (err) {
     next(err);
   }
@@ -275,38 +457,59 @@ router.post(
         periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
         urlDestino, impulsionado, segmentacao, titulo, tiposCompra,
         cloudinaryUrl, cloudinaryPublicId, tipoMidia, campanhaVeiculoId, linkPostagem,
+        formularioNativo, observacoesFormularioNativo, searchCampos,
       } = req.body;
       const ehImpulsionado = impulsionado !== "false";
+      const tiposCompraParsed = tiposCompra ? JSON.parse(tiposCompra) : [];
+      // formato agora e multi-selecao (ex: Performance Max = Search + Display
+      // juntos) -- chega como JSON string do FormData, igual tiposCompra.
+      const formatoParsed = formato ? JSON.parse(formato) : [];
+      // Google Search (formato inclui "Search") nao tem peca visual -- nenhum
+      // dos campos de texto do Search e obrigatorio. Em PMax (Search + outro
+      // formato junto), o upload de arquivo continua disponivel/obrigatorio
+      // pelos OUTROS formatos marcados -- so isenta quando Search e o UNICO
+      // formato selecionado.
+      const ehSoSearch = formatoParsed.length === 1 && formatoParsed[0] === "Search";
       // "Impulsionado" parte de um post ja publicado organicamente -- exige o link
       // da postagem em vez de arquivo. "Dark Post" nao existe como post organico,
-      // entao continua exigindo arquivo.
-      if (ehImpulsionado && !linkPostagem?.trim()) {
+      // entao continua exigindo arquivo. Nenhuma das duas se aplica quando o
+      // criativo e so Search.
+      if (!ehSoSearch && ehImpulsionado && !linkPostagem?.trim()) {
         return res.status(400).json({ error: "Informe o link da postagem impulsionada" });
       }
-      if (!ehImpulsionado && !req.file && !cloudinaryUrl) {
+      if (!ehSoSearch && !ehImpulsionado && !req.file && !cloudinaryUrl) {
         return res.status(400).json({ error: "Arquivo obrigatório para Dark Post" });
       }
       if (!nome || !campanha || !veiculo) {
         return res.status(400).json({ error: "Campos obrigatórios: nome, campanha, veiculo" });
       }
-      if (!formato) {
+      if (!formatoParsed.length) {
         return res.status(400).json({ error: "Selecione o formato" });
       }
       if (periodoInicio && periodoFim && periodoInicio > periodoFim) {
         return res.status(400).json({ error: "A data inicial não pode ser depois da data final" });
       }
+      // CPL com formulario nativo da propria plataforma exige a descricao desse
+      // formulario (nao ha URL/LP externa pra documentar o que foi configurado).
+      const ehCPLNativo = tiposCompraParsed.includes("CPL") && (formularioNativo === "true" || formularioNativo === true);
+      if (ehCPLNativo && !observacoesFormularioNativo?.trim()) {
+        return res.status(400).json({ error: "Descreva o formulário nativo" });
+      }
       const creative = await createCreative({
         file: req.file,
         cloudinaryUrl, cloudinaryPublicId, tipoMidia,
         nome, adName, campanha, campaignName, conjunto, descricao, observacoes,
-        periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
+        periodoInicio, periodoFim, veiculo, plataforma, formato: formatoParsed, posicionamento,
         urlDestino,
         impulsionado: ehImpulsionado,
         segmentacao, titulo,
-        tiposCompra: tiposCompra ? JSON.parse(tiposCompra) : [],
+        tiposCompra: tiposCompraParsed,
         criadoPor: req.user.id,
         campanhaVeiculoId: campanhaVeiculoId || null,
         linkPostagem,
+        formularioNativo,
+        observacoesFormularioNativo,
+        searchCampos: searchCampos ? JSON.parse(searchCampos) : undefined,
       });
       res.status(201).json(creative);
     } catch (err) {
@@ -321,12 +524,14 @@ router.put(
   (req, res, next) => upload.single("file")(req, res, handleUploadErrors(req, res, next)),
   async (req, res, next) => {
     try {
-      const { tiposCompra, impulsionado, ...rest } = req.body;
+      const { tiposCompra, impulsionado, searchCampos, formato, ...rest } = req.body;
       const updated = await updateCreative(req.params.id, {
         ...rest,
         file: req.file,
         impulsionado: impulsionado !== undefined ? impulsionado !== "false" : undefined,
         tiposCompra: tiposCompra ? JSON.parse(tiposCompra) : undefined,
+        searchCampos: searchCampos !== undefined ? (searchCampos ? JSON.parse(searchCampos) : null) : undefined,
+        formato: formato !== undefined ? (formato ? JSON.parse(formato) : undefined) : undefined,
       }, req.user.id);
       if (!updated) return res.status(404).json({ error: "Criativo não encontrado" });
       res.json(updated);

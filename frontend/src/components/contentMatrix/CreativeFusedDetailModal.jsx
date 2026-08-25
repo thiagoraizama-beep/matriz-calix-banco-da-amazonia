@@ -4,6 +4,7 @@ import CreativeEvolutionChart from "../creative/CreativeEvolutionChart.jsx";
 import Spinner from "../common/Spinner.jsx";
 import CommentsTab from "./CommentsTab.jsx";
 import { OrcamentoBar } from "./CreativeGridCard.jsx";
+import KeywordCloud from "./KeywordCloud.jsx";
 import { getPerformancePorCampanha } from "../../api/client.js";
 
 const EMPTY_FILTERS = {};
@@ -26,11 +27,26 @@ function CloseIcon() {
   );
 }
 
+function ChevronIcon({ direcao }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+      <path d={direcao === "esquerda" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
+    </svg>
+  );
+}
+
 function formatPeriodo(inicio, fim) {
   if (!inicio && !fim) return null;
   const fmt = (iso) => { const [y, m, d] = iso.slice(0, 10).split("-"); return `${d}/${m}/${y}`; };
   if (inicio && fim) return `${fmt(inicio)} - ${fmt(fim)}`;
   return fmt(inicio || fim);
+}
+
+// Numera cada item da lista (Titulo 1: ..., Titulo 2: ...) em vez de so
+// concatenar -- mais facil de contar/referenciar quando ha varios.
+function listaNumerada(valores, rotulo) {
+  if (!Array.isArray(valores) || valores.length === 0) return "";
+  return valores.map((v, i) => `${rotulo} ${i + 1}: ${v}`).join("\n");
 }
 
 function formatCompact(value) {
@@ -62,7 +78,7 @@ function Field({ label, value }) {
   return (
     <div>
       <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-secondary)" }}>{label}</p>
-      <p style={{ margin: "3px 0 0", fontSize: 13.5, fontWeight: 500, wordBreak: "break-word" }}>
+      <p style={{ margin: "3px 0 0", fontSize: 13.5, fontWeight: 500, wordBreak: "break-word", whiteSpace: "pre-line" }}>
         {value || <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>—</span>}
       </p>
     </div>
@@ -90,10 +106,38 @@ const TABS = [
 // sob demanda so quando essa aba e aberta pela primeira vez, casando pelo Ad Name)
 // e "Comentarios" (com @mencao, ver CommentsTab.jsx). abaInicial permite abrir
 // o modal ja na aba certa (ex: clicar numa notificacao de mencao no sino).
-export default function CreativeFusedDetailModal({ creative, campanhaId, onClose, abaInicial = "implementacao", comentariosSomenteLeitura = false }) {
+export default function CreativeFusedDetailModal({
+  creative, campanhaId, onClose, abaInicial = "implementacao", comentariosSomenteLeitura = false,
+  onNavegar, listaNavegacao,
+}) {
   const periodo = formatPeriodo(creative.periodo_inicio, creative.periodo_fim);
   const [copied, setCopied] = useState(false);
   const [aba, setAba] = useState(abaInicial);
+
+  // Navegacao entre criativos (setas/teclado) sem fechar o modal -- so ativa
+  // quando o chamador passou a lista completa que estava sendo exibida (ex: a
+  // grade filtrada da Matriz), pra "anterior/proximo" respeitar o que o
+  // usuario estava vendo, nao a lista bruta sem filtro.
+  const indiceAtual = listaNavegacao?.findIndex((c) => c.id === creative.id) ?? -1;
+  const temNavegacao = Boolean(onNavegar) && Array.isArray(listaNavegacao) && indiceAtual !== -1;
+  const podeAnterior = temNavegacao && indiceAtual > 0;
+  const podeProximo = temNavegacao && indiceAtual < listaNavegacao.length - 1;
+
+  function irPara(novoIndice) {
+    if (novoIndice < 0 || novoIndice >= listaNavegacao.length) return;
+    setAba("implementacao");
+    onNavegar(listaNavegacao[novoIndice]);
+  }
+
+  useEffect(() => {
+    if (!temNavegacao) return;
+    function handleKeyDown(e) {
+      if (e.key === "ArrowLeft") irPara(indiceAtual - 1);
+      else if (e.key === "ArrowRight") irPara(indiceAtual + 1);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [temNavegacao, indiceAtual, listaNavegacao]);
 
   // Seção de Performance so e ocultada por completo quando o vinculo nao tem a
   // permissao (acesso_analise_criativo) -- sem ad_name ou sem match ainda, a aba
@@ -125,6 +169,36 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
         animation: "creativeModalOverlayIn 0.15s ease-out",
       }}
     >
+      {temNavegacao && (
+        <button
+          onClick={(e) => { e.stopPropagation(); irPara(indiceAtual - 1); }}
+          disabled={!podeAnterior}
+          aria-label="Criativo anterior"
+          style={{
+            position: "fixed", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 301,
+            display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%",
+            border: "none", cursor: podeAnterior ? "pointer" : "default", background: "rgba(20,33,61,0.55)", color: "#fff",
+            opacity: podeAnterior ? 1 : 0.3,
+          }}
+        >
+          <ChevronIcon direcao="esquerda" />
+        </button>
+      )}
+      {temNavegacao && (
+        <button
+          onClick={(e) => { e.stopPropagation(); irPara(indiceAtual + 1); }}
+          disabled={!podeProximo}
+          aria-label="Próximo criativo"
+          style={{
+            position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", zIndex: 301,
+            display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%",
+            border: "none", cursor: podeProximo ? "pointer" : "default", background: "rgba(20,33,61,0.55)", color: "#fff",
+            opacity: podeProximo ? 1 : 0.3,
+          }}
+        >
+          <ChevronIcon direcao="direita" />
+        </button>
+      )}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -137,7 +211,9 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
         {/* Cabecalho: midia em destaque como banner, nome/status sobrepostos por
             baixo (fora da imagem) para nao perder legibilidade sobre fotos claras. */}
         <div style={{ position: "relative", flexShrink: 0, height: 320, background: "var(--bg)", borderRadius: "16px 16px 0 0", overflow: "hidden" }}>
-          {creative.tipo_midia === "video" ? (
+          {creative.formato?.includes("Search") ? (
+            <KeywordCloud palavrasChave={creative.search_campos?.palavrasChave} width={1040} height={320} />
+          ) : creative.tipo_midia === "video" ? (
             <video
               src={creative.cloudinary_url}
               controls
@@ -201,8 +277,11 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
                   <Field label="Veículo" value={creative.veiculo} />
                   <Field label="Plataforma" value={creative.plataforma} />
                   <Field label="Campanha" value={creative.campanha} />
-                  <Field label="Formato" value={creative.formato} />
+                  <Field label="Formato" value={creative.formato?.join(", ")} />
                   <Field label="Tipo de compra" value={creative.tipos_compra?.length ? creative.tipos_compra.join(", ") : null} />
+                  {creative.tipos_compra?.includes("CPL") && (
+                    <Field label="Formulário de captura" value={creative.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa"} />
+                  )}
                   <Field label="Período de veiculação" value={periodo} />
                   <Field label="Título" value={creative.titulo} />
                   <Field label="Segmentação" value={creative.segmentacao} />
@@ -218,6 +297,33 @@ export default function CreativeFusedDetailModal({ creative, campanhaId, onClose
                   )}
                 </div>
               </Section>
+
+              {creative.formulario_nativo && creative.observacoes_formulario_nativo && (
+                <Section title="Formulário nativo">
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
+                    {creative.observacoes_formulario_nativo}
+                  </p>
+                </Section>
+              )}
+
+              {creative.formato?.includes("Search") && creative.search_campos && (
+                <Section title="Google Search">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {creative.search_campos.titulo?.length > 0 && (
+                      <Field label="Títulos" value={listaNumerada(creative.search_campos.titulo, "Título")} />
+                    )}
+                    {creative.search_campos.tituloLongo?.length > 0 && (
+                      <Field label="Títulos longos" value={listaNumerada(creative.search_campos.tituloLongo, "Título longo")} />
+                    )}
+                    {creative.search_campos.texto?.length > 0 && (
+                      <Field label="Descrições" value={listaNumerada(creative.search_campos.texto, "Descrição")} />
+                    )}
+                    {creative.search_campos.palavrasChave && (
+                      <Field label="Palavras-chave" value={creative.search_campos.palavrasChave} />
+                    )}
+                  </div>
+                </Section>
+              )}
 
               {creative.url_destino && (
                 <Section title="URL de destino">

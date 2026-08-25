@@ -11,6 +11,7 @@ import plataformasRoutes from "./routes/plataformas.routes.js";
 import statusSyncRoutes from "./routes/statusSync.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import lixeiraRoutes from "./routes/lixeira.routes.js";
+import creativesDownloadRoutes from "./routes/creativesDownload.routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const app = express();
@@ -19,6 +20,10 @@ app.use(cookieParser());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
+// Sem requireAuth -- links de download com token proprio (ver
+// creativesDownload.routes.js), pensados pra abrir fora do app (ex: clicado
+// de dentro do Excel exportado).
+app.use("/api/download", creativesDownloadRoutes);
 app.use("/api/creatives", requireAuth, creativesRoutes);
 app.use("/api/vehicles", requireAuth, vehiclesRoutes);
 app.use("/api/parceiros", requireAuth, parceirosRoutes);

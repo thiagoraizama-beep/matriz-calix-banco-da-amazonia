@@ -303,6 +303,84 @@ export function bulkDeleteCreatives(ids) {
   return api.delete("/creatives/bulk", { data: { ids } }).then((r) => r.data);
 }
 
+// Plataformas disponiveis pra exportar (popula o menu de selecao antes do download).
+export function getPlataformasParaExportar(campanhaId) {
+  return api.get(`/creatives/export/${campanhaId}/plataformas`).then((r) => r.data);
+}
+
+// Baixa o Excel da Matriz (uma aba por plataforma) e dispara o download no
+// navegador -- link temporario em memoria, removido logo em seguida.
+// plataformas: lista opcional -- sem ela, exporta todas. Sempre .xlsx puro --
+// criativos com multiplos arquivos tem seu proprio link de zip dentro da
+// planilha (coluna "Link da peça").
+export async function exportCreativesExcel(campanhaId, campanhaNome, plataformas) {
+  const { data } = await api.get(`/creatives/export/${campanhaId}`, {
+    responseType: "blob",
+    params: plataformas?.length ? { plataformas } : undefined,
+  });
+  const url = window.URL.createObjectURL(data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `matriz-de-conteudo-${campanhaNome || campanhaId}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+// Estado atual da integracao Google Sheets da campanha: planilha vinculada
+// (se houver) e quais criativos estao marcados pra ir nela -- usado pra
+// pre-marcar os checkboxes ao abrir o modal "Gerar planilha".
+export function getSheetSyncStatus(campanhaId) {
+  return api.get(`/creatives/sheet-sync/${campanhaId}`).then((r) => r.data);
+}
+
+// Salva a selecao de criativos marcados no modal "Gerar planilha" e
+// sincroniza na hora -- desmarcar um criativo que ja estava la remove a
+// linha dele. spreadsheetId pode ser null/omitido pra so atualizar a
+// selecao sem publicar ainda (nenhuma planilha vinculada).
+export function saveSheetSync(campanhaId, { spreadsheetId, creativeIds }) {
+  return api.put(`/creatives/sheet-sync/${campanhaId}`, { spreadsheetId, creativeIds }).then((r) => r.data);
+}
+
+// Colunas disponiveis pra exportar (base + so-Google) e a config atual de
+// quais aparecem por plataforma/criativo -- popula a secao "Colunas" do
+// modal "Gerar planilha".
+export function getExportColumnsConfig(campanhaId) {
+  return api.get(`/creatives/export-config/${campanhaId}`).then((r) => r.data);
+}
+
+export function saveExportColumnsConfig(campanhaId, config) {
+  return api.put(`/creatives/export-config/${campanhaId}`, { config }).then((r) => r.data);
+}
+
+// Arquivos adicionais de um criativo (ex: varios tamanhos de banner Display).
+export function getCreativeFiles(creativeId) {
+  return api.get(`/creatives/${creativeId}/files`).then((r) => r.data);
+}
+
+export function addCreativeFiles(creativeId, files) {
+  const fd = new FormData();
+  for (const file of files) fd.append("files", file);
+  return api.post(`/creatives/${creativeId}/files`, fd).then((r) => r.data);
+}
+
+// Troca qual arquivo e a capa do criativo (so faz sentido em edicao, entre
+// arquivos ja salvos).
+export function setCreativeFileAsCapa(creativeId, fileId) {
+  return api.patch(`/creatives/${creativeId}/files/${fileId}/capa`).then((r) => r.data);
+}
+
+// Baixa todos os arquivos do criativo (principal + extras) num .zip -- usado
+// pelo botao "Baixar" do card quando o criativo tem mais de 1 arquivo.
+export function toDownloadZipUrl(creativeId) {
+  return `/api/creatives/${creativeId}/files/zip`;
+}
+
+export function removeCreativeFile(creativeId, fileId) {
+  return api.delete(`/creatives/${creativeId}/files/${fileId}`);
+}
+
 export function getRegisteredVehicles() {
   return api.get("/vehicles").then((r) => r.data);
 }

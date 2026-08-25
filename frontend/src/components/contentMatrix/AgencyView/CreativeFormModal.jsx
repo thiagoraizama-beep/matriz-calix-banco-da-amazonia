@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { createMatrixCreative, createMatrixCreativeRascunho, updateMatrixCreative, deleteMatrixCreative, getCampanhas } from "../../../api/client.js";
+import { createMatrixCreative, createMatrixCreativeRascunho, updateMatrixCreative, deleteMatrixCreative, getCampanhas, getCreativeFiles, addCreativeFiles, removeCreativeFile, setCreativeFileAsCapa } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
+import MultiSearchSelect from "../../layout/MultiSearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
 
 const TODOS_FORMATOS = [
+  "Performance Max", "Search",
   "Feed", "Stories", "Reels", "Carrossel", "Coleção", "Instant Experience", "Messenger",
   "In-Feed", "TopView", "Brand Takeover", "Branded Hashtag Challenge", "Branded Effect", "Spark Ads",
   "In-Stream Pulável", "In-Stream Não Pulável", "Bumper Ad", "Discovery", "Shorts", "Masthead",
@@ -32,8 +34,8 @@ const TABS = [
 ];
 
 const CAMPO_PARA_ABA = {
-  linkPostagem: "basico", file: "basico", campanha: "basico", veiculo: "basico", plataforma: "basico", nome: "basico",
-  tipoCompra: "compra", formato: "compra", periodo: "compra",
+  formato: "basico", linkPostagem: "basico", file: "basico", campanha: "basico", veiculo: "basico", plataforma: "basico", nome: "basico",
+  tipoCompra: "compra", periodo: "compra", observacoesFormularioNativo: "compra",
   adName: "detalhes",
 };
 
@@ -46,6 +48,51 @@ function Field({ label, children, invalid }) {
       <div style={invalid ? { outline: "1px solid var(--danger)", borderRadius: 8 } : undefined}>
         {children}
       </div>
+    </div>
+  );
+}
+
+// Lista de campos de texto (ex: varios Titulos de um Search Ad) -- cada item
+// tem seu proprio input, "+ Adicionar" cria um novo campo vazio no fim, "x"
+// remove (nunca deixa a lista vazia, sempre sobra ao menos 1 input pronto).
+function ListaCamposTexto({ valores, onChange, placeholder, multiline, inputStyle, textareaStyle }) {
+  function setItem(i, valor) {
+    const novos = [...valores];
+    novos[i] = valor;
+    onChange(novos);
+  }
+  function remover(i) {
+    const novos = valores.filter((_, idx) => idx !== i);
+    onChange(novos.length ? novos : [""]);
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {valores.map((valor, i) => (
+        <div key={i} style={{ display: "flex", gap: 6, alignItems: multiline ? "flex-start" : "center" }}>
+          {multiline ? (
+            <textarea value={valor} onChange={(e) => setItem(i, e.target.value)} rows={2} style={{ ...textareaStyle, flex: 1 }} placeholder={placeholder} />
+          ) : (
+            <input value={valor} onChange={(e) => setItem(i, e.target.value)} style={{ ...inputStyle, flex: 1 }} placeholder={placeholder} />
+          )}
+          {valores.length > 1 && (
+            <button
+              type="button"
+              onClick={() => remover(i)}
+              title="Remover"
+              style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer" }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...valores, ""])}
+        style={{ alignSelf: "flex-start", padding: "6px 12px", borderRadius: 8, border: "1px dashed var(--border)", background: "transparent", color: "var(--accent)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+      >
+        + Adicionar
+      </button>
     </div>
   );
 }
@@ -63,7 +110,22 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   const [campanha, setCampanha] = useState(creative?.campanha || "");
   const [veiculo, setVeiculo] = useState(creative?.veiculo || "");
   const [conjunto, setConjunto] = useState(creative?.conjunto || "");
-  const [formato, setFormato] = useState(creative?.formato || "");
+  // Formato e selecao unica pra QUALQUER formato, EXCETO Performance Max --
+  // PMax combina Search (texto) + Display/YouTube (midia) no mesmo criativo,
+  // entao ele sozinho permite somar outros formatos junto. Qualquer outro
+  // formato marcado sem PMax continua excludente (marcar um substitui o
+  // anterior, como era antes da mudanca pra multi-select).
+  const [formato, setFormato] = useState(creative?.formato || []);
+  function handleFormatoChange(novos) {
+    if (novos.includes("Performance Max")) {
+      setFormato(novos);
+      return;
+    }
+    // Sem PMax no array novo: mantem so o ultimo valor adicionado/restante
+    // (novos tem no maximo 1 a mais que formato, ja que MultiSearchSelect
+    // sempre adiciona ou remove 1 item por vez).
+    setFormato(novos.length ? [novos[novos.length - 1]] : []);
+  }
   const [plataforma, setPlataforma] = useState(creative?.plataforma || "");
   const [posicionamento, setPosicionamento] = useState(creative?.posicionamento || "");
   const [urlDestino, setUrlDestino] = useState(creative?.url_destino || "");
@@ -82,9 +144,39 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   const [periodoFim, setPeriodoFim] = useState(creative?.periodo_fim?.slice(0, 10) || "");
   const [descricao, setDescricao] = useState(creative?.descricao || "");
   const [observacoes, setObservacoes] = useState(creative?.observacoes || "");
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(creative?.cloudinary_url || null);
-  const fileInputRef = useRef(null);
+  const [formularioNativo, setFormularioNativo] = useState(creative?.formulario_nativo === true);
+  const [observacoesFormularioNativo, setObservacoesFormularioNativo] = useState(creative?.observacoes_formulario_nativo || "");
+  // titulo/tituloLongo/texto sao listas (Google Search Responsive Ads aceita
+  // varias variacoes de cada) -- normaliza string antiga (formato anterior a
+  // essa mudanca) pra array de 1 item, sempre com pelo menos 1 campo vazio
+  // pronto pra digitar.
+  function normalizarListaSearch(valor) {
+    if (Array.isArray(valor)) return valor.length ? valor : [""];
+    if (typeof valor === "string" && valor) return [valor];
+    return [""];
+  }
+  const [searchCampos, setSearchCampos] = useState({
+    titulo: normalizarListaSearch(creative?.search_campos?.titulo),
+    tituloLongo: normalizarListaSearch(creative?.search_campos?.tituloLongo),
+    texto: normalizarListaSearch(creative?.search_campos?.texto),
+    palavrasChave: creative?.search_campos?.palavrasChave || "",
+  });
+  // Upload unico, multiplo -- um criativo pode ter varios arquivos (ex:
+  // varios tamanhos de banner Display), um deles marcado como capa/preview
+  // do card. Criacao: capaIndex escolhe qual dos arquivosNovos vira o
+  // arquivo principal (creatives.cloudinary_*) ao salvar, os demais entram
+  // como extras (creative_files). Edicao: capaAtual espelha o arquivo
+  // principal ja salvo (creative.cloudinary_url/tipo_midia) -- clicar numa
+  // miniatura ja salva troca a capa de verdade via API (setCreativeFileAsCapa).
+  const [arquivosExistentes, setArquivosExistentes] = useState([]);
+  const [arquivosNovos, setArquivosNovos] = useState([]);
+  const [capaIndex, setCapaIndex] = useState(0);
+  const [capaAtual, setCapaAtual] = useState(
+    creative?.cloudinary_url ? { cloudinary_url: creative.cloudinary_url, tipo_midia: creative.tipo_midia } : null
+  );
+  const [trocandoCapa, setTrocandoCapa] = useState(false);
+  const [enviandoArquivosExtras, setEnviandoArquivosExtras] = useState(false);
+  const arquivoInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [campoInvalido, setCampoInvalido] = useState(null);
@@ -105,6 +197,70 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
       })
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!isEdit) return;
+    getCreativeFiles(creative.id).then(setArquivosExistentes).catch(console.error);
+  }, [isEdit, creative?.id]);
+
+  function handleArquivosChange(e) {
+    const novos = Array.from(e.target.files || []);
+    setArquivosNovos((prev) => [...prev, ...novos]);
+    e.target.value = "";
+  }
+
+  function removerArquivoNovo(index) {
+    setArquivosNovos((prev) => prev.filter((_, i) => i !== index));
+    setCapaIndex((prev) => {
+      if (index < prev) return prev - 1;
+      if (index === prev) return 0;
+      return prev;
+    });
+  }
+
+  // Arquivo ja salvo -- remove direto via API (nao espera o "Salvar" do form).
+  async function removerArquivoExistente(fileId) {
+    try {
+      await removeCreativeFile(creative.id, fileId);
+      setArquivosExistentes((prev) => prev.filter((a) => a.id !== fileId));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // Troca a capa entre arquivos ja salvos -- o extra escolhido vira o
+  // principal de verdade (via API), o principal atual desce pra extra.
+  async function trocarCapa(fileId) {
+    setTrocandoCapa(true);
+    try {
+      const atualizado = await setCreativeFileAsCapa(creative.id, fileId);
+      setCapaAtual({ cloudinary_url: atualizado.cloudinary_url, tipo_midia: atualizado.tipo_midia });
+      const arquivos = await getCreativeFiles(creative.id);
+      setArquivosExistentes(arquivos);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTrocandoCapa(false);
+    }
+  }
+
+  // Envia os arquivos que NAO viraram capa como extras -- so pode rodar
+  // depois que o criativo principal ja existe (precisa de um id). Em
+  // criacao, o arquivo da capa (capaIndex) ja foi enviado como principal
+  // dentro de montarFormData, entao aqui so sobram os demais.
+  async function enviarArquivosExtras(creativeId) {
+    const extras = isEdit ? arquivosNovos : arquivosNovos.filter((_, i) => i !== capaIndex);
+    if (extras.length === 0) return;
+    setEnviandoArquivosExtras(true);
+    try {
+      await addCreativeFiles(creativeId, extras);
+      setArquivosNovos([]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setEnviandoArquivosExtras(false);
+    }
+  }
 
   // Deriva veiculoOptions/plataformasVeiculo/campanhaVeiculoId a partir de campanhaData+campanha+veiculo
   // sempre de forma idempotente (recalcula do zero, nao depende de "rodou uma vez") -- robusto contra
@@ -143,29 +299,48 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     setPlataforma("");
   }
 
-  function handleFileChange(e) {
-    const f = e.target.files?.[0] || null;
-    setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : creative?.cloudinary_url || null);
-  }
 
 
   const MENSAGEM_CAMPO_PENDENTE = "Preencha os campos pendentes";
 
+  // Campos de texto do Search aparecem sempre que o criativo tiver algo que
+  // usa esse tipo de conteudo: Search puro, Performance Max (combina Search +
+  // midia) ou Display do Google (Display generico so entra aqui quando a
+  // Plataforma cadastrada e do Google -- outras redes com Display, tipo Meta,
+  // nao usam titulo/descricao no formato do Google Ads).
+  const ehDisplayGoogle = formato.includes("Display") && plataforma.toLowerCase().includes("google");
+  const ehSearch = formato.includes("Search") || formato.includes("Performance Max") || ehDisplayGoogle;
+  // Palavras-chave e exclusivo de Search/PMax (busca) -- Display nao tem
+  // busca por palavra-chave, so segmentacao por publico/interesse.
+  const temPalavrasChave = formato.includes("Search") || formato.includes("Performance Max");
+  // O upload de arquivo so fica isento quando Search e o UNICO formato
+  // marcado (PMax combinando Search + Display, por ex, continua exigindo
+  // arquivo pelo outro formato).
+  const ehSoSearch = formato.length === 1 && formato[0] === "Search";
+
   function validarCamposObrigatorios() {
-    if (impulsionado) {
-      if (!linkPostagem.trim()) return { campo: "linkPostagem", mensagem: MENSAGEM_CAMPO_PENDENTE };
-    } else if (!isEdit && !file && !creative?.cloudinary_url) {
-      return { campo: "file", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    if (!formato.length) return { campo: "formato", mensagem: MENSAGEM_CAMPO_PENDENTE };
+    // Google Search e so texto -- nao exige arquivo nem link de postagem,
+    // mas so quando Search e o unico formato marcado.
+    if (!ehSoSearch) {
+      if (impulsionado) {
+        if (!linkPostagem.trim()) return { campo: "linkPostagem", mensagem: MENSAGEM_CAMPO_PENDENTE };
+      } else if (!isEdit && arquivosNovos.length === 0 && !creative?.cloudinary_url) {
+        return { campo: "file", mensagem: MENSAGEM_CAMPO_PENDENTE };
+      }
     }
     if (!campanha) return { campo: "campanha", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!veiculo) return { campo: "veiculo", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!plataforma) return { campo: "plataforma", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!tipoCompra) return { campo: "tipoCompra", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!nome.trim()) return { campo: "nome", mensagem: MENSAGEM_CAMPO_PENDENTE };
-    if (!formato) return { campo: "formato", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (!periodoInicio || !periodoFim) return { campo: "periodo", mensagem: MENSAGEM_CAMPO_PENDENTE };
     if (periodoInicio > periodoFim) return { campo: "periodo", mensagem: "A data inicial não pode ser depois da data final" };
+    // CPL com formulario nativo exige descrever o formulario, ja que nao ha
+    // URL/LP externa pra documentar o que foi configurado na plataforma.
+    if (tipoCompra === "CPL" && formularioNativo && !observacoesFormularioNativo.trim()) {
+      return { campo: "observacoesFormularioNativo", mensagem: "Descreva o formulário nativo" };
+    }
     return null;
   }
 
@@ -174,8 +349,12 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   // faz sentido "corrigir" um campo que o usuario pode nem ter preenchido ainda).
   function montarFormData({ incluirMidiaExistente }) {
     const fd = new FormData();
-    if (file) fd.append("file", file);
-    if (!file && incluirMidiaExistente && creative?.cloudinary_url) {
+    // So em criacao o arquivo escolhido como capa vira o arquivo principal
+    // (creatives.cloudinary_*) -- em edicao a capa ja salva nao muda por
+    // aqui, os arquivosNovos entram todos como extras (ver enviarArquivosExtras).
+    const arquivoCapa = !isEdit ? arquivosNovos[capaIndex] : null;
+    if (arquivoCapa) fd.append("file", arquivoCapa);
+    if (!arquivoCapa && incluirMidiaExistente && creative?.cloudinary_url) {
       fd.append("cloudinaryUrl", creative.cloudinary_url);
       fd.append("cloudinaryPublicId", creative.cloudinary_public_id);
       fd.append("tipoMidia", creative.tipo_midia);
@@ -190,7 +369,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     fd.append("veiculo", veiculo);
     fd.append("plataforma", plataforma);
     fd.append("conjunto", conjunto);
-    fd.append("formato", formato);
+    fd.append("formato", JSON.stringify(formato));
     fd.append("posicionamento", posicionamento);
     fd.append("urlDestino", urlDestinoNormalizada);
     fd.append("impulsionado", String(impulsionado));
@@ -205,6 +384,17 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     if (periodoFim) fd.append("periodoFim", periodoFim);
     fd.append("descricao", descricao);
     fd.append("observacoes", observacoes);
+    fd.append("formularioNativo", String(tipoCompra === "CPL" && formularioNativo));
+    fd.append("observacoesFormularioNativo", tipoCompra === "CPL" ? observacoesFormularioNativo : "");
+    const searchCamposLimpos = ehSearch
+      ? {
+          titulo: searchCampos.titulo.map((v) => v.trim()).filter(Boolean),
+          tituloLongo: searchCampos.tituloLongo.map((v) => v.trim()).filter(Boolean),
+          texto: searchCampos.texto.map((v) => v.trim()).filter(Boolean),
+          palavrasChave: searchCampos.palavrasChave,
+        }
+      : null;
+    fd.append("searchCampos", JSON.stringify(searchCamposLimpos));
     return fd;
   }
 
@@ -214,8 +404,8 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   // "de verdade" (fechar sem salvar ali so descarta a edicao, como sempre foi).
   const ehRascunhoOuNovo = !isEdit || creative?.status === "Rascunho";
   const temAlgumCampoPreenchido = Boolean(
-    file || nome.trim() || adName.trim() || campanha || veiculo || plataforma ||
-    conjunto || formato || urlDestino.trim() || linkPostagem.trim() || segmentacao.trim() ||
+    arquivosNovos.length > 0 || nome.trim() || adName.trim() || campanha || veiculo || plataforma ||
+    conjunto || formato.length > 0 || urlDestino.trim() || linkPostagem.trim() || segmentacao.trim() ||
     titulo.trim() || tipoCompra || periodoInicio || periodoFim || descricao.trim() || observacoes.trim()
   );
 
@@ -232,14 +422,16 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     }
     setSaving(true);
     try {
+      let salvo;
       if (isEdit) {
         const fd = montarFormData({ incluirMidiaExistente: false });
         if (creative.status === "Rascunho") fd.append("publicarRascunho", "true");
-        await updateMatrixCreative(creative.id, fd);
+        salvo = await updateMatrixCreative(creative.id, fd);
       } else {
         const fd = montarFormData({ incluirMidiaExistente: true });
-        await createMatrixCreative(fd);
+        salvo = await createMatrixCreative(fd);
       }
+      await enviarArquivosExtras(salvo.id);
       onSaved();
       onClose();
     } catch (err) {
@@ -391,85 +583,212 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
         <div style={{ padding: "22px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
           {abaAtiva === "basico" && (
             <>
-              {/* Impulsionado / Darkpost -- decide o que aparece no campo seguinte:
-                  Impulsionado pede o link do post ja publicado, Dark Post exige upload
-                  de arquivo (nao existe como post organico). */}
-              <Field label="Tipo de publicação">
-                <div style={{ display: "flex", gap: 8 }}>
-                  {[{ label: "Impulsionado", val: true }, { label: "Dark Post", val: false }].map(({ label, val }) => {
-                    const sel = impulsionado === val;
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => setImpulsionado(val)}
-                        style={{
-                          flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
-                          background: sel ? "var(--accent-soft)" : "transparent", color: sel ? "var(--accent)" : "var(--text-secondary)",
-                          fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
-                        }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+              {/* Formato vem primeiro na aba, antes do arquivo -- multi-selecao (ex:
+                  Performance Max = Search + Display juntos). Marcar "Search" soma os
+                  campos de texto abaixo; o upload de arquivo so some quando Search
+                  for o UNICO formato marcado (senao continua exigido pelos outros). */}
+              <Field label="Formato *" invalid={campoInvalido === "formato"}>
+                <MultiSearchSelect
+                  value={formato}
+                  onChange={handleFormatoChange}
+                  options={TODOS_FORMATOS}
+                  placeholder="Buscar formato: Search, Stories, Reels..."
+                />
               </Field>
 
-              {impulsionado && (
-                <Field label="Link da postagem *" invalid={campoInvalido === "linkPostagem"}>
-                  <input
-                    value={linkPostagem}
-                    onChange={(e) => setLinkPostagem(e.target.value)}
-                    type="text"
-                    placeholder="https://..."
-                    style={inputStyle}
-                  />
-                </Field>
+              {ehSearch && (
+                <>
+                  <Field label="Títulos">
+                    <ListaCamposTexto
+                      valores={searchCampos.titulo}
+                      onChange={(novos) => setSearchCampos((s) => ({ ...s, titulo: novos }))}
+                      inputStyle={inputStyle}
+                      textareaStyle={textareaStyle}
+                    />
+                  </Field>
+                  <Field label="Títulos longos">
+                    <ListaCamposTexto
+                      valores={searchCampos.tituloLongo}
+                      onChange={(novos) => setSearchCampos((s) => ({ ...s, tituloLongo: novos }))}
+                      inputStyle={inputStyle}
+                      textareaStyle={textareaStyle}
+                    />
+                  </Field>
+                  <Field label="Descrições">
+                    <ListaCamposTexto
+                      valores={searchCampos.texto}
+                      onChange={(novos) => setSearchCampos((s) => ({ ...s, texto: novos }))}
+                      multiline
+                      inputStyle={inputStyle}
+                      textareaStyle={textareaStyle}
+                    />
+                  </Field>
+                  {temPalavrasChave && (
+                    <Field label="Palavras-chave">
+                      <textarea
+                        value={searchCampos.palavrasChave}
+                        onChange={(e) => setSearchCampos((s) => ({ ...s, palavrasChave: e.target.value }))}
+                        rows={2} style={textareaStyle}
+                        placeholder="Separe por vírgula ou quebra de linha"
+                      />
+                    </Field>
+                  )}
+                </>
               )}
 
-              {/* Arquivo -- obrigatorio so para Dark Post (nao existe post organico pra
-                  linkar); em Impulsionado fica opcional, so para ter uma imagem de
-                  preview do card na Matriz (o usuario pode subir um print/download da
-                  peca se quiser). */}
-              <Field
-                label={impulsionado ? "Arquivo (opcional, para preview)" : isEdit ? "Arquivo (imagem ou vídeo)" : "Arquivo (imagem ou vídeo) *"}
-                invalid={campoInvalido === "file"}
-              >
-                {preview && (
-                  <div style={{ marginBottom: 10, borderRadius: 10, overflow: "hidden", maxHeight: 160, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
-                    {(file ? file.type?.startsWith("video") : creative?.tipo_midia === "video") ? (
-                      <video src={preview} style={{ maxHeight: 160, maxWidth: "100%" }} controls />
-                    ) : (
-                      <img src={preview} alt="preview" style={{ maxHeight: 160, maxWidth: "100%", objectFit: "contain" }} />
-                    )}
-                  </div>
-                )}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                  >
-                    {isEdit ? "Trocar arquivo" : "Escolher arquivo"}
-                  </button>
-                  {file && (
-                    <span style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
-                      {file.name}
-                    </span>
+              {!ehSoSearch && (
+                <>
+                  {/* Impulsionado / Darkpost -- decide o que aparece no campo seguinte:
+                      Impulsionado pede o link do post ja publicado, Dark Post exige upload
+                      de arquivo (nao existe como post organico). */}
+                  <Field label="Tipo de publicação">
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {[{ label: "Impulsionado", val: true }, { label: "Dark Post", val: false }].map(({ label, val }) => {
+                        const sel = impulsionado === val;
+                        return (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => setImpulsionado(val)}
+                            style={{
+                              flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                              background: sel ? "var(--accent-soft)" : "transparent", color: sel ? "var(--accent)" : "var(--text-secondary)",
+                              fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Field>
+
+                  {impulsionado && (
+                    <Field label="Link da postagem *" invalid={campoInvalido === "linkPostagem"}>
+                      <input
+                        value={linkPostagem}
+                        onChange={(e) => setLinkPostagem(e.target.value)}
+                        type="text"
+                        placeholder="https://..."
+                        style={inputStyle}
+                      />
+                    </Field>
                   )}
-                  {isEdit && file && (
+
+                  {/* Arquivo(s) -- obrigatorio so para Dark Post (nao existe post organico
+                      pra linkar); em Impulsionado fica opcional, so para ter uma imagem de
+                      preview do card na Matriz. Upload unico e multiplo: pode escolher
+                      varios arquivos de uma vez (ex: tamanhos diferentes do mesmo banner
+                      Display) -- em criacao, clique numa miniatura pra marcar qual vira a
+                      capa/preview do card; em edicao, clicar numa miniatura ja salva troca a
+                      capa de verdade (setCreativeFileAsCapa) -- o principal atual desce pra
+                      arquivo adicional no lugar dela. */}
+                  <Field
+                    label={impulsionado ? "Arquivo(s) (opcional, para preview)" : isEdit ? "Arquivo(s)" : "Arquivo(s) *"}
+                    invalid={campoInvalido === "file"}
+                  >
+                    {(isEdit && capaAtual || arquivosExistentes.length > 0 || arquivosNovos.length > 0) && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                        {isEdit && capaAtual && (
+                          <div style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", background: "var(--bg)", border: "2px solid var(--accent)" }}>
+                            {capaAtual.tipo_midia === "video" ? (
+                              <video src={capaAtual.cloudinary_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              <img src={capaAtual.cloudinary_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            )}
+                            <span style={{ position: "absolute", bottom: 2, left: 2, right: 2, textAlign: "center", fontSize: 9, fontWeight: 700, color: "#fff", background: "rgba(20,33,61,0.75)", borderRadius: 4, padding: "1px 0" }}>
+                              Capa
+                            </span>
+                          </div>
+                        )}
+                        {arquivosExistentes.map((a) => (
+                          <div
+                            key={a.id}
+                            onClick={() => !trocandoCapa && trocarCapa(a.id)}
+                            title="Clique para tornar a capa"
+                            style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", background: "var(--bg)", cursor: trocandoCapa ? "default" : "pointer", opacity: trocandoCapa ? 0.6 : 1 }}
+                          >
+                            {a.tipo_midia === "video" ? (
+                              <video src={a.cloudinary_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            ) : (
+                              <img src={a.cloudinary_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); removerArquivoExistente(a.id); }}
+                              title="Remover"
+                              style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: "50%", border: "none", background: "rgba(20,33,61,0.75)", color: "#fff", cursor: "pointer", fontSize: 11, lineHeight: 1 }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {arquivosNovos.map((f, i) => {
+                          // So faz sentido escolher capa em criacao -- em edicao a capa ja
+                          // esta definida (creative.cloudinary_url), todo novo e extra.
+                          const ehCapa = !isEdit && i === capaIndex;
+                          return (
+                            <div
+                              key={i}
+                              onClick={() => !isEdit && setCapaIndex(i)}
+                              style={{
+                                position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden",
+                                background: "var(--bg)", cursor: !isEdit ? "pointer" : "default",
+                                border: ehCapa ? "2px solid var(--accent)" : "2px solid transparent",
+                              }}
+                            >
+                              {f.type?.startsWith("video") ? (
+                                <video src={URL.createObjectURL(f)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : (
+                                <img src={URL.createObjectURL(f)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              )}
+                              {ehCapa && (
+                                <span style={{ position: "absolute", bottom: 2, left: 2, right: 2, textAlign: "center", fontSize: 9, fontWeight: 700, color: "#fff", background: "rgba(20,33,61,0.75)", borderRadius: 4, padding: "1px 0" }}>
+                                  Capa
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); removerArquivoNovo(i); }}
+                                title="Remover"
+                                style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: "50%", border: "none", background: "rgba(20,33,61,0.75)", color: "#fff", cursor: "pointer", fontSize: 11, lineHeight: 1 }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {!isEdit && arquivosNovos.length > 1 && (
+                      <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--text-secondary)" }}>
+                        Clique numa miniatura pra escolher qual vira a capa do card.
+                      </p>
+                    )}
+                    {isEdit && arquivosExistentes.length > 0 && (
+                      <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--text-secondary)" }}>
+                        {trocandoCapa ? "Trocando capa..." : "Clique numa miniatura pra torná-la a capa do card."}
+                      </p>
+                    )}
                     <button
                       type="button"
-                      onClick={() => { setFile(null); setPreview(creative?.cloudinary_url || null); }}
-                      style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
+                      onClick={() => arquivoInputRef.current?.click()}
+                      disabled={enviandoArquivosExtras}
+                      style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 13, fontWeight: 600, cursor: enviandoArquivosExtras ? "default" : "pointer" }}
                     >
-                      Cancelar troca
+                      {enviandoArquivosExtras ? "Enviando..." : "Escolher arquivo(s)"}
                     </button>
-                  )}
-                </div>
-                <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileChange} style={{ display: "none" }} />
-              </Field>
+                    <input
+                      ref={arquivoInputRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      onChange={handleArquivosChange}
+                      style={{ display: "none" }}
+                    />
+                  </Field>
+                </>
+              )}
 
               {/* Campanha → carrega veículos */}
               <Field label="Campanha *" invalid={campoInvalido === "campanha"}>
@@ -563,16 +882,43 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
                 </div>
               </Field>
 
-              {/* Formato */}
-              <Field label="Formato *" invalid={campoInvalido === "formato"}>
-                <SearchSelect
-                  value={formato}
-                  onChange={(v) => setFormato(v || "")}
-                  options={TODOS_FORMATOS}
-                  placeholder="Stories, Reels, Feed..."
-                  allowFreeText
-                />
-              </Field>
+              {/* Formulario nativo -- so faz sentido quando o tipo de compra e CPL. A
+                  captura de lead pode acontecer dentro da propria plataforma (ex: Meta
+                  Lead Ads, sem LP externa) ou via site/LP -- url_destino continua
+                  disponivel independente dessa escolha. */}
+              {tipoCompra === "CPL" && (
+                <Field label="Formulário de captura">
+                  <div style={{ display: "flex", gap: 8, marginBottom: formularioNativo ? 10 : 0 }}>
+                    {[{ label: "Site/LP externa", val: false }, { label: "Nativo da plataforma", val: true }].map(({ label, val }) => {
+                      const sel = formularioNativo === val;
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => setFormularioNativo(val)}
+                          style={{
+                            flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                            background: sel ? "var(--accent-soft)" : "transparent", color: sel ? "var(--accent)" : "var(--text-secondary)",
+                            fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {formularioNativo && (
+                    <Field label="Observações do formulário nativo *" invalid={campoInvalido === "observacoesFormularioNativo"}>
+                      <textarea
+                        value={observacoesFormularioNativo}
+                        onChange={(e) => setObservacoesFormularioNativo(e.target.value)}
+                        rows={3} style={textareaStyle}
+                        placeholder="Descreva os campos coletados, ex: Nome / Telefone / Email"
+                      />
+                    </Field>
+                  )}
+                </Field>
+              )}
 
               {/* Período */}
               <Field label="Período de veiculação *" invalid={campoInvalido === "periodo"}>
@@ -706,6 +1052,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
               </button>
             )}
           </div>
+
         </div>
       </div>
 

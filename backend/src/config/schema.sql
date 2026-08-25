@@ -69,6 +69,57 @@ ALTER TABLE creatives ALTER COLUMN tipo_midia DROP NOT NULL;
 ALTER TABLE creatives ADD COLUMN IF NOT EXISTS eh_performance BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE creatives ADD COLUMN IF NOT EXISTS orcamento_projetado NUMERIC(12,2);
 
+-- CPL pode capturar o lead via formulario nativo da propria plataforma (ex: Meta
+-- Lead Ads) ou site/LP externa (url_destino continua disponivel em paralelo,
+-- nao sao mutuamente exclusivos). formulario_nativo so faz sentido quando 'CPL'
+-- esta em tipos_compra, mas isso e validado so na rota (mesmo padrao de
+-- impulsionado/link_postagem).
+ALTER TABLE creatives ADD COLUMN IF NOT EXISTS formulario_nativo BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE creatives ADD COLUMN IF NOT EXISTS observacoes_formulario_nativo TEXT;
+
+-- Google Search (Formato = "Search") nao tem peca visual -- so texto. JSONB
+-- (nao colunas dedicadas) porque mais campos de texto do Search serao
+-- adicionados no futuro -- evita ALTER TABLE a cada campo novo. Chaves
+-- (camelCase, todas opcionais): titulo, tituloLongo, texto, palavrasChave.
+ALTER TABLE creatives ADD COLUMN IF NOT EXISTS search_campos JSONB;
+
+-- Multiplos arquivos por criativo (ex: varios tamanhos de banner do mesmo
+-- anuncio). creatives.cloudinary_public_id/url/tipo_midia continuam sendo o
+-- arquivo PRINCIPAL (preview do card, miniatura no Excel) -- fluxo de upload
+-- single-file existente nao muda. creative_files guarda so os EXTRAS.
+CREATE TABLE IF NOT EXISTS creative_files (
+  id SERIAL PRIMARY KEY,
+  creative_id INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
+  cloudinary_public_id TEXT NOT NULL,
+  cloudinary_url TEXT NOT NULL,
+  tipo_midia TEXT NOT NULL CHECK (tipo_midia IN ('image', 'video')),
+  nome_original TEXT,
+  ordem INTEGER NOT NULL DEFAULT 0,
+  criado_em TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_creative_files_creative ON creative_files(creative_id);
+
+-- formato passa de string unica para lista -- Performance Max combina Search
+-- (texto) + Display/YouTube (midia) no mesmo anuncio, nao cabe numa unica
+-- categoria. Migra dados existentes (1 valor -> array de 1) ANTES de trocar
+-- o tipo da coluna, senao perde os dados hoje gravados. So roda a migracao
+-- se "formato" ainda for do tipo antigo (TEXT) -- idempotente a cada boot.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'creatives' AND column_name = 'formato' AND data_type <> 'ARRAY'
+  ) THEN
+    ALTER TABLE creatives ADD COLUMN formato_array TEXT[];
+    UPDATE creatives SET formato_array = CASE WHEN formato IS NOT NULL AND formato <> '' THEN ARRAY[formato] ELSE '{}' END;
+    ALTER TABLE creatives DROP COLUMN formato;
+    ALTER TABLE creatives RENAME COLUMN formato_array TO formato;
+  END IF;
+END $$;
+ALTER TABLE creatives ALTER COLUMN formato SET DEFAULT '{}';
+UPDATE creatives SET formato = '{}' WHERE formato IS NULL;
+ALTER TABLE creatives ALTER COLUMN formato SET NOT NULL;
+
 ALTER TABLE creatives DROP CONSTRAINT IF EXISTS creatives_status_check;
 ALTER TABLE creatives ADD CONSTRAINT creatives_status_check
   CHECK (status IN (
@@ -246,6 +297,48 @@ CREATE TABLE IF NOT EXISTS campanha_sheets (
   atualizado_em TIMESTAMP NOT NULL DEFAULT now()
 );
 ALTER TABLE campanha_sheets ADD COLUMN IF NOT EXISTS col_leads TEXT;
+
+-- Direcao INVERSA de campanha_sheets acima: aqui o sistema ESCREVE os
+-- criativos da campanha numa planilha do Google Sheets (nao le performance
+-- de fora pra dentro). Sem mapeamento de colunas -- o sistema decide o
+-- layout (mesma estrutura do Excel exportado), so precisa do spreadsheet_id.
+-- Selecao e MANUAL: so os criativos marcados em campanha_sheets_sync_items
+-- (abaixo) vao pra planilha -- nunca a campanha inteira automaticamente.
+CREATE TABLE IF NOT EXISTS campanha_sheets_sync (
+  id SERIAL PRIMARY KEY,
+  campanha_id INTEGER NOT NULL UNIQUE REFERENCES campanhas(id) ON DELETE CASCADE,
+  spreadsheet_id TEXT NOT NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT now(),
+  ultima_sincronizacao_em TIMESTAMP,
+  ultimo_erro TEXT,
+  ultimo_erro_em TIMESTAMP
+);
+
+-- Configuracao de colunas do Excel/Sheets exportados, por campanha --
+-- independente de a campanha ter ou nao planilha do Sheets vinculada (o
+-- Excel usa a mesma config). Quais colunas aparecem, por plataforma, e
+-- excecoes por criativo individual. NULL / chave ausente = usa o padrao do
+-- sistema (COLUNAS_BASE/COLUNAS_GOOGLE em creativesExportService.js) --
+-- nunca precisa ser configurado pra funcionar. Formato de colunas_config:
+-- { "porPlataforma": { "Meta Ads": ["plataforma","titulo",...] },
+--   "porCriativo": { "123": ["plataforma","titulo",...] } }
+CREATE TABLE IF NOT EXISTS campanha_export_config (
+  campanha_id INTEGER PRIMARY KEY REFERENCES campanhas(id) ON DELETE CASCADE,
+  colunas_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  atualizado_em TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Quais criativos o usuario marcou explicitamente pra ir na planilha
+-- vinculada (via modal "Gerar planilha" no FAB da Matriz). Desmarcar um
+-- criativo remove a linha dele da aba na proxima sincronizacao. Depois de
+-- marcado, edicoes normais no criativo (status, orcamento etc) continuam
+-- refletindo sozinhas -- so a ENTRADA/SAIDA da planilha e manual.
+CREATE TABLE IF NOT EXISTS campanha_sheets_sync_items (
+  campanha_id INTEGER NOT NULL REFERENCES campanhas(id) ON DELETE CASCADE,
+  creative_id INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
+  criado_em TIMESTAMP NOT NULL DEFAULT now(),
+  PRIMARY KEY (campanha_id, creative_id)
+);
 
 -- Vinculo campanha -> veiculo -> plataformas que aquele veiculo trabalha nesta campanha.
 -- tipo_midia: o escopo de midia do veiculo NESTA campanha especifica, que pode ser mais

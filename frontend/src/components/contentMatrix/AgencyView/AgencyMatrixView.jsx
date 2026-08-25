@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getMatrixCreatives, getCreativesByCampanha, deleteMatrixCreative, bulkDeleteCreatives, updateMatrixCreativeStatus, syncCampanhaStatus, getPerformancePorCampanha, getBulkEditOperations } from "../../../api/client.js";
+import GerarPlanilhaModal from "./GerarPlanilhaModal.jsx";
 import CreativeFormModal from "./CreativeFormModal.jsx";
 import BulkEditModal from "./BulkEditModal.jsx";
 import BulkEditHistoryPanel from "./BulkEditHistoryPanel.jsx";
@@ -85,6 +86,15 @@ function HistoryIcon() {
   );
 }
 
+function SheetIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+    </svg>
+  );
+}
+
 export default function AgencyMatrixView({ campanhaId } = {}) {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -106,6 +116,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const [editandoEmMassa, setEditandoEmMassa] = useState(false);
   const [bulkModalAberto, setBulkModalAberto] = useState(false);
   const [bulkHistoryAberto, setBulkHistoryAberto] = useState(false);
+  const [exportExcelAberto, setExportExcelAberto] = useState(false);
   const [bulkOperationsCount, setBulkOperationsCount] = useState(0);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [excluindoEmMassa, setExcluindoEmMassa] = useState(false);
@@ -389,6 +400,13 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       tone: "default",
       badge: bulkOperationsCount,
     },
+    campanhaId && creatives?.length >= 1 && !modoSelecaoAtivo && {
+      key: "gerar-planilha",
+      icon: <SheetIcon />,
+      label: "Gerar planilha",
+      onClick: () => setExportExcelAberto(true),
+      tone: "default",
+    },
   ];
 
   // Botao discreto pra rever/desfazer as ultimas edicoes (ate 2h) -- cobre
@@ -598,7 +616,14 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
 
   const modals = (
     <>
-      {modalOpen && <CreativeFormModal creative={editing} onClose={() => setModalOpen(false)} onSaved={load} />}
+      {modalOpen && (
+        <CreativeFormModal
+          key={editing?.id || "novo"}
+          creative={editing}
+          onClose={() => { setModalOpen(false); setEditing(null); }}
+          onSaved={load}
+        />
+      )}
       {bulkModalAberto && <BulkEditModal ids={selecionados} onClose={() => setBulkModalAberto(false)} onSaved={handleBulkSaved} />}
       {bulkHistoryAberto && (
         <BulkEditHistoryPanel
@@ -606,11 +631,16 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           onUndone={() => { load(); loadBulkOperationsCount(); }}
         />
       )}
+      {exportExcelAberto && (
+        <GerarPlanilhaModal campanhaId={campanhaId} onClose={() => setExportExcelAberto(false)} />
+      )}
       {viewing && (
         <CreativeFusedDetailModal
           creative={viewing}
           campanhaId={campanhaId}
           abaInicial={viewingAbaInicial}
+          onNavegar={setViewing}
+          listaNavegacao={filteredOrdenado}
           onClose={() => { setViewing(null); setViewingAbaInicial("implementacao"); }}
         />
       )}
@@ -667,7 +697,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   // (por isso o overlayAberto vem do contexto compartilhado em vez de um
   // estado local aqui).
   const algumOverlayAberto = overlayAberto || modalOpen || !!editing || !!deleting || !!viewing
-    || bulkModalAberto || bulkHistoryAberto || !!bulkDeleting || comparativoAberto;
+    || bulkModalAberto || bulkHistoryAberto || !!bulkDeleting || comparativoAberto || exportExcelAberto;
 
   return (
     <div>

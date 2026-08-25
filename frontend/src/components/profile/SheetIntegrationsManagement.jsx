@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getCampanhas, getSheetHeaders, saveCampanhaSheet, deleteCampanhaSheet, getGa4ServiceAccount } from "../../api/client.js";
 import ConfirmDialog from "../common/ConfirmDialog.jsx";
 import MultiSelectDropdown from "../layout/MultiSelectDropdown.jsx";
+import { extrairSpreadsheetId } from "../../utils/extrairSpreadsheetId.js";
 
 function CopyIcon() {
   return (
@@ -38,13 +39,6 @@ const CAMPOS_MAPEAMENTO = [
   { key: "engajamentos", label: "Total Engagements" },
 ];
 
-// Extrai o ID da planilha de uma URL colada inteira (ex:
-// https://docs.google.com/spreadsheets/d/ABC123/edit#gid=0) ou aceita o ID puro.
-function extrairSpreadsheetId(value) {
-  const trimmed = (value || "").trim();
-  const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : trimmed;
-}
 
 // O usuario so precisa digitar o NOME da aba (ex: "Consolidada") -- a notacao
 // A1 do Google Sheets (NomeDaAba!A:Z) e completada automaticamente aqui, ja que

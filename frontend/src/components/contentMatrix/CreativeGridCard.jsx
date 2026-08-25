@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import StatusBadge from "./statusBadge.jsx";
 import { labelUrgencia } from "../../utils/urgencia.js";
+import KeywordCloud from "./KeywordCloud.jsx";
+import { toDownloadZipUrl } from "../../api/client.js";
 
 function formatPeriodo(inicio, fim) {
   if (!inicio && !fim) return null;
@@ -160,7 +162,17 @@ function ActionsMenu({ creative, onOpenDetail, onEdit, onDuplicate, onDelete, ca
       }}
     >
       <button onClick={() => run(onOpenDetail)} style={menuItemStyle}><EyeIcon /> Ver detalhes</button>
-      {creative.cloudinary_url && (
+      {Number(creative.arquivos_extras) > 0 ? (
+        // Criativo com multiplos arquivos -- baixa tudo junto num .zip (link
+        // direto no cloudinary_url so traria o arquivo principal).
+        <a
+          href={toDownloadZipUrl(creative.id)}
+          onClick={onClose}
+          style={{ ...menuItemStyle, textDecoration: "none" }}
+        >
+          <DownloadIcon /> Baixar tudo (.zip)
+        </a>
+      ) : creative.cloudinary_url && (
         <a
           href={toDownloadUrl(creative.cloudinary_url, buildFilename(creative))}
           download={buildFilename(creative)}
@@ -361,7 +373,9 @@ export default function CreativeGridCard({
           display: "flex", alignItems: "center", justifyContent: "center", height: 220,
         }}
       >
-        {creative.tipo_midia === "video" ? (
+        {creative.formato?.includes("Search") ? (
+          <KeywordCloud palavrasChave={creative.search_campos?.palavrasChave} />
+        ) : creative.tipo_midia === "video" ? (
           <video
             src={creative.cloudinary_url}
             autoPlay

@@ -116,6 +116,8 @@ export const COLUNA_POR_CAMPO = {
   observacoes: "observacoes",
   ehPerformance: "eh_performance",
   orcamentoProjetado: "orcamento_projetado",
+  formularioNativo: "formulario_nativo",
+  observacoesFormularioNativo: "observacoes_formulario_nativo",
 };
 
 // Restaura os valores_antes de 1 snapshot no creativo correspondente, marca

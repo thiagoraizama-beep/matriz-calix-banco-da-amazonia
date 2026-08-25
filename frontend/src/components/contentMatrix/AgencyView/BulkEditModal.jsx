@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { bulkUpdateCreatives, undoBulkEditOperation, getCampanhas, getRegisteredVehicles, getPlataformas } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
+import MultiSearchSelect from "../../layout/MultiSearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
 import StatusBadge, { STATUS_OPTIONS_AGENCIA } from "../statusBadge.jsx";
 
 const TODOS_FORMATOS = [
+  "Performance Max", "Search",
   "Feed", "Stories", "Reels", "Carrossel", "Coleção", "Instant Experience", "Messenger",
   "In-Feed", "TopView", "Brand Takeover", "Branded Hashtag Challenge", "Branded Effect", "Spark Ads",
   "In-Stream Pulável", "In-Stream Não Pulável", "Bumper Ad", "Discovery", "Shorts", "Masthead",
@@ -111,7 +113,16 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
   const [tipoCompra, setTipoCompra] = useState("");
   const [campaignName, setCampaignName] = useState("");
   const [conjunto, setConjunto] = useState("");
-  const [formato, setFormato] = useState("");
+  const [formato, setFormato] = useState([]);
+  // Mesma regra do CreativeFormModal.jsx: Performance Max e o unico formato
+  // que permite combinar com outros -- qualquer outro formato e excludente.
+  function handleFormatoChange(novos) {
+    if (novos.includes("Performance Max")) {
+      setFormato(novos);
+      return;
+    }
+    setFormato(novos.length ? [novos[novos.length - 1]] : []);
+  }
   const [periodoInicio, setPeriodoInicio] = useState("");
   const [periodoFim, setPeriodoFim] = useState("");
   const [urlDestino, setUrlDestino] = useState("");
@@ -284,7 +295,7 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
           </CampoEmMassa>
 
           <CampoEmMassa label="Formato" aplicar={!!aplicar.formato} onToggleAplicar={() => toggle("formato")}>
-            <SearchSelect value={formato} onChange={(v) => setFormato(v || "")} options={TODOS_FORMATOS} placeholder="Stories, Reels, Feed..." />
+            <MultiSearchSelect value={formato} onChange={handleFormatoChange} options={TODOS_FORMATOS} placeholder="Buscar formato: Search, Stories, Reels..." />
           </CampoEmMassa>
 
           <CampoEmMassa label="Campaign Name" aplicar={!!aplicar.campaignName} onToggleAplicar={() => toggle("campaignName")}>

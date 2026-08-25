@@ -4,6 +4,16 @@ import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 import { scopeVeiculoFilter, scopeCampanhaFilter } from "../utils/scopeFilter.js";
 import { registrarAcao, registrarEdicaoCampos, resolveCampanhaIdDoCreative } from "./actionLogService.js";
 import { registrarOperacaoBulk, COLUNA_POR_CAMPO } from "./bulkEditService.js";
+import { removeAllCreativeFiles } from "./creativeFilesService.js";
+
+// Import dinamico -- creativesSheetSyncService.js importa listCreativesByCampanha
+// deste arquivo, entao um import estatico aqui criaria um ciclo. agendarSyncSheet
+// e no-op instantaneo quando a campanha nao tem planilha vinculada, entao o
+// custo do import() a cada chamada e desprezivel.
+async function agendarSyncSheet(campanhaId) {
+  const { agendarSyncSheet: fn } = await import("./creativesSheetSyncService.js");
+  return fn(campanhaId);
+}
 
 // Rotulos legiveis dos campos editaveis de um criativo, usados pelo log de
 // auditoria (registrarEdicaoCampos) para descrever "Campo: antes -> depois"
@@ -30,6 +40,8 @@ const LABELS_CAMPOS_CREATIVE = {
   observacoes: "Observações",
   ehPerformance: "Performance",
   orcamentoProjetado: "Orçamento projetado",
+  formularioNativo: "Formulário nativo",
+  observacoesFormularioNativo: "Observações do formulário nativo",
 };
 
 export const STATUSES = [
@@ -229,7 +241,8 @@ export async function listCreativesByCampanha(user, campanhaId) {
   if (veiculos) {
     const vinculoIds = vinculoIdsComAcessoMatriz(user);
     const { rows } = await query(
-      `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo
+      `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo,
+              (SELECT COUNT(*) FROM creative_files cf WHERE cf.creative_id = cr.id) AS arquivos_extras
        FROM creatives cr
        LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
        WHERE cr.status != 'Rascunho' AND cr.excluido_em IS NULL
@@ -242,7 +255,8 @@ export async function listCreativesByCampanha(user, campanhaId) {
     return rows;
   }
   const { rows } = await query(
-    `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo
+    `SELECT cr.*, cv.acesso_analise_criativo, cv.plataformas_analise_criativo,
+            (SELECT COUNT(*) FROM creative_files cf WHERE cf.creative_id = cr.id) AS arquivos_extras
      FROM creatives cr
      LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
      WHERE cr.status != 'Rascunho' AND cr.excluido_em IS NULL
@@ -290,8 +304,10 @@ export async function findCreativeByAdName(adName, plataforma, vendedor, formato
   const normalized = adName.replace(/\s+/g, " ").trim();
   const adNameMatch = "REGEXP_REPLACE(ad_name, '\\s+', ' ', 'g') = $1";
 
+  // formato agora e array (TEXT[]) -- casa se UPPER($6) estiver entre os
+  // valores marcados no criativo, em vez de comparar igualdade direta.
   return matchUnico(
-    `SELECT * FROM creatives WHERE ${adNameMatch} AND plataforma = $2 AND veiculo = $3 AND campanha = $4 AND $5 = ANY(tipos_compra) AND UPPER(formato) = UPPER($6) AND excluido_em IS NULL`,
+    `SELECT * FROM creatives WHERE ${adNameMatch} AND plataforma = $2 AND veiculo = $3 AND campanha = $4 AND $5 = ANY(tipos_compra) AND UPPER($6) = ANY(SELECT UPPER(f) FROM unnest(formato) AS f) AND excluido_em IS NULL`,
     [normalized, plataforma, vendedor, campanha, modeloCompra, formato]
   );
 }
@@ -310,7 +326,7 @@ export async function createCreative({
   periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
   urlDestino, impulsionado, segmentacao, titulo, tiposCompra, criadoPor,
   campanhaVeiculoId, linkPostagem, ehPerformance, orcamentoProjetado,
-  status,
+  status, formularioNativo, observacoesFormularioNativo, searchCampos,
 }) {
   // "Impulsionado" parte de um post ja publicado organicamente -- nesse caso o
   // arquivo e opcional (o link da postagem substitui o upload); "Dark Post" nao
@@ -333,13 +349,14 @@ export async function createCreative({
        periodo_inicio, periodo_fim, veiculo, plataforma, formato, posicionamento,
        url_destino, impulsionado, segmentacao, titulo, tipos_compra,
        cloudinary_public_id, cloudinary_url, tipo_midia, criado_por, campanha_veiculo_id,
-       link_postagem, eh_performance, orcamento_projetado, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,COALESCE($27, 'Não registrado'))
+       link_postagem, eh_performance, orcamento_projetado, status,
+       formulario_nativo, observacoes_formulario_nativo, search_campos)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,COALESCE($27, 'Não registrado'),$28,$29,$30)
      RETURNING *`,
     [
       nome || null, adName?.trim() || null, campanha || null, campaignName || null, conjunto || null,
       descricao || null, observacoes || null, periodoInicio || null, periodoFim || null,
-      veiculo || null, plataforma || null, formato || null, posicionamento || null,
+      veiculo || null, plataforma || null, formato?.length ? formato : [], posicionamento || null,
       urlDestino || null, impulsionado !== false, segmentacao || null, titulo || null,
       tiposCompra?.length ? tiposCompra : [],
       publicId, secureUrl, tipoMidia, criadoPor, campanhaVeiculoId || null,
@@ -347,6 +364,9 @@ export async function createCreative({
       ehPerformance === true || ehPerformance === "true",
       ehPerformance ? (orcamentoProjetado || null) : null,
       status || null,
+      formularioNativo === true || formularioNativo === "true",
+      observacoesFormularioNativo || null,
+      searchCampos ? JSON.stringify(searchCampos) : null,
     ]
   );
   const creative = rows[0];
@@ -364,6 +384,7 @@ export async function createCreative({
       acao: "criacao",
       alteradoPor: criadoPor,
     });
+    await agendarSyncSheet(campanhaIdLog);
   }
 
   return creative;
@@ -380,6 +401,7 @@ export async function updateCreative(id, {
   periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
   urlDestino, impulsionado, segmentacao, titulo, tiposCompra, campanhaVeiculoId,
   linkPostagem, ehPerformance, orcamentoProjetado, publicarRascunho,
+  formularioNativo, observacoesFormularioNativo, searchCampos,
 }, alteradoPor = null, pularRegistroOperacaoBulk = false) {
   // Sempre busca o estado anterior (nao so quando ha arquivo novo) -- usado
   // tanto para a limpeza de midia antiga quanto para o diff do log de auditoria.
@@ -420,6 +442,8 @@ export async function updateCreative(id, {
   const conjuntoTocado = conjunto !== undefined;
   const descricaoTocado = descricao !== undefined;
   const observacoesTocado = observacoes !== undefined;
+  const observacoesFormularioNativoTocado = observacoesFormularioNativo !== undefined;
+  const searchCamposTocado = searchCampos !== undefined;
 
   const { rows } = await query(
     `UPDATE creatives SET
@@ -449,6 +473,9 @@ export async function updateCreative(id, {
       eh_performance = COALESCE($25, eh_performance),
       orcamento_projetado = CASE WHEN $25 IS NULL THEN orcamento_projetado ELSE $26 END,
       status = CASE WHEN status = 'Rascunho' AND $27 = true THEN 'Não registrado' ELSE status END,
+      formulario_nativo = COALESCE($33, formulario_nativo),
+      observacoes_formulario_nativo = CASE WHEN $34 THEN $35 ELSE observacoes_formulario_nativo END,
+      search_campos = CASE WHEN $36 THEN $37 ELSE search_campos END,
       atualizado_em = now()
      WHERE id = $1
      RETURNING *`,
@@ -459,7 +486,7 @@ export async function updateCreative(id, {
       descricaoTocado ? (descricao.trim() || null) : null,
       observacoesTocado ? (observacoes.trim() || null) : null,
       periodoInicio, periodoFim, veiculo,
-      plataforma || null, formato || null, posicionamento || null, urlDestino || null,
+      plataforma || null, formato?.length ? formato : null, posicionamento || null, urlDestino || null,
       impulsionado !== undefined ? impulsionado : null,
       segmentacao || null, titulo || null,
       tiposCompra?.length ? tiposCompra : null,
@@ -470,6 +497,9 @@ export async function updateCreative(id, {
       (ehPerformance === true || ehPerformance === "true") ? (orcamentoProjetado || null) : null,
       publicarRascunho === true || publicarRascunho === "true",
       adNameTocado, campaignNameTocado, conjuntoTocado, descricaoTocado, observacoesTocado,
+      formularioNativo !== undefined ? (formularioNativo === true || formularioNativo === "true") : null,
+      observacoesFormularioNativoTocado, observacoesFormularioNativoTocado ? (observacoesFormularioNativo.trim() || null) : null,
+      searchCamposTocado, searchCamposTocado ? (searchCampos ? JSON.stringify(searchCampos) : null) : null,
     ]
   );
 
@@ -498,6 +528,8 @@ export async function updateCreative(id, {
       segmentacao: creativeAntigo.segmentacao, titulo: creativeAntigo.titulo, posicionamento: creativeAntigo.posicionamento,
       descricao: creativeAntigo.descricao, observacoes: creativeAntigo.observacoes,
       ehPerformance: creativeAntigo.eh_performance ? "Sim" : "Não", orcamentoProjetado: creativeAntigo.orcamento_projetado,
+      formularioNativo: creativeAntigo.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa",
+      observacoesFormularioNativo: creativeAntigo.observacoes_formulario_nativo,
     };
     const camposDepois = {};
     for (const [chave, valor] of Object.entries({
@@ -506,6 +538,8 @@ export async function updateCreative(id, {
       linkPostagem, segmentacao, titulo, posicionamento, descricao, observacoes,
       ehPerformance: ehPerformance !== undefined ? ((ehPerformance === true || ehPerformance === "true") ? "Sim" : "Não") : undefined,
       orcamentoProjetado,
+      formularioNativo: formularioNativo !== undefined ? ((formularioNativo === true || formularioNativo === "true") ? "Nativo da plataforma" : "Site/LP externa") : undefined,
+      observacoesFormularioNativo,
     })) {
       if (valor !== undefined) camposDepois[chave] = valor;
     }
@@ -534,6 +568,8 @@ export async function updateCreative(id, {
       for (const chave of camposComColuna) valoresAntes[chave] = creativeAntigo[COLUNA_POR_CAMPO[chave]];
       await registrarOperacaoBulk(alteradoPor, camposComColuna, [{ creativeId: creative.id, valoresAntes }]);
     }
+
+    await agendarSyncSheet(campanhaIdLog);
   }
 
   return creative;
@@ -560,6 +596,7 @@ export async function deleteCreative(id, alteradoPor = null) {
       acao: "exclusao",
       alteradoPor,
     });
+    await agendarSyncSheet(campanhaIdLog);
   }
 
   await query(
@@ -623,6 +660,7 @@ export async function restaurarCreative(id, alteradoPor = null) {
       acao: "restauracao",
       alteradoPor,
     });
+    await agendarSyncSheet(campanhaIdLog);
   }
   return restaurado || null;
 }
@@ -640,6 +678,7 @@ export async function excluirCreativeDefinitivo(id, alteradoPor = null) {
       resource_type: creative.tipo_midia === "video" ? "video" : "image",
     });
   }
+  await removeAllCreativeFiles(id);
 
   await query("DELETE FROM creatives WHERE id = $1", [id]);
 
@@ -653,6 +692,7 @@ export async function excluirCreativeDefinitivo(id, alteradoPor = null) {
       acao: "exclusao_definitiva",
       alteradoPor,
     });
+    await agendarSyncSheet(campanhaIdLog);
   }
 
   return true;
@@ -709,6 +749,7 @@ export async function updateStatus(id, novoStatus, user, pularRegistroOperacaoBu
   // (na hora, o status ja e trivialmente reversivel clicando de novo no card).
   if (!pularRegistroOperacaoBulk) {
     await registrarOperacaoBulk(user.id, ["status"], [{ creativeId: creative.id, valoresAntes: { status: creative.status } }]);
+    await agendarSyncSheet(campanhaIdLog);
   }
 
   return rows[0];
@@ -724,6 +765,7 @@ export const CAMPOS_EDICAO_EM_MASSA = [
   "campaignName", "conjunto", "formato", "periodoInicio", "periodoFim",
   "urlDestino", "impulsionado", "segmentacao", "titulo", "posicionamento",
   "descricao", "observacoes", "ehPerformance", "orcamentoProjetado",
+  "formularioNativo", "observacoesFormularioNativo",
 ];
 
 // Edicao em massa (Matriz de Conteudo): aplica o mesmo patch (status e/ou outros
@@ -781,6 +823,18 @@ export async function updateCreativesBulk(ids, patch, user) {
   let operationId = null;
   if (snapshots.length > 0) {
     operationId = await registrarOperacaoBulk(user.id, camposComColuna, snapshots);
+  }
+
+  // Sincroniza 1x por campanha distinta afetada, nao por item do loop
+  // (updateStatus/updateCreative acima pulam seu proprio sync individual via
+  // pularRegistroOperacaoBulk=true, exatamente pra isso).
+  const campanhaIdsAfetados = new Set();
+  for (const creative of atualizados) {
+    const campanhaIdLog = await resolveCampanhaIdDoCreative(creative);
+    if (campanhaIdLog) campanhaIdsAfetados.add(campanhaIdLog);
+  }
+  for (const campanhaIdLog of campanhaIdsAfetados) {
+    await agendarSyncSheet(campanhaIdLog);
   }
 
   return { atualizados, falharam, operationId };

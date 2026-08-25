@@ -15,7 +15,10 @@ export function getGoogleAuth() {
   }
 
   authClient = new google.auth.JWT(email, null, key, [
-    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    // Escopo completo (nao so .readonly) -- necessario pra sincronizar
+    // criativos da Matriz numa planilha (creativesSheetSyncService.js).
+    // Inclui leitura, entao nao quebra os usos existentes (sheetsClient.js).
+    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/analytics.readonly",
   ]);
