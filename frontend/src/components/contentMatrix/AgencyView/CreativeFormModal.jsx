@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createMatrixCreative, createMatrixCreativeRascunho, updateMatrixCreative, deleteMatrixCreative, getCampanhas, getCreativeFiles, addCreativeFiles, removeCreativeFile, setCreativeFileAsCapa } from "../../../api/client.js";
+import { createMatrixCreative, createMatrixCreativeRascunho, updateMatrixCreative, deleteMatrixCreative, getCampanhas, getCreativeFiles, addCreativeFiles, removeCreativeFile, setCreativeFileAsCapa, reorderCreativeFiles } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
 import MultiSearchSelect from "../../layout/MultiSearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
@@ -175,6 +175,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     creative?.cloudinary_url ? { cloudinary_url: creative.cloudinary_url, tipo_midia: creative.tipo_midia } : null
   );
   const [trocandoCapa, setTrocandoCapa] = useState(false);
+  const [arrastandoId, setArrastandoId] = useState(null);
   const [enviandoArquivosExtras, setEnviandoArquivosExtras] = useState(false);
   const arquivoInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
@@ -225,6 +226,29 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
       setArquivosExistentes((prev) => prev.filter((a) => a.id !== fileId));
     } catch (err) {
       console.error(err);
+    }
+  }
+
+  // Arrastar e soltar entre arquivos extras ja salvos -- so reordena os
+  // EXTRAS entre si (a capa e sempre o creative.cloudinary_url, escolhida
+  // via trocarCapa). A nova ordem persiste na hora e vale tanto pro
+  // carrossel (MediaCarousel.jsx) quanto pra numeracao do zip.
+  async function reordenarArquivoExistente(fileIdArrastado, fileIdAlvo) {
+    if (fileIdArrastado === fileIdAlvo) return;
+    const indiceOrigem = arquivosExistentes.findIndex((a) => a.id === fileIdArrastado);
+    const indiceDestino = arquivosExistentes.findIndex((a) => a.id === fileIdAlvo);
+    if (indiceOrigem === -1 || indiceDestino === -1) return;
+
+    const reordenados = [...arquivosExistentes];
+    const [movido] = reordenados.splice(indiceOrigem, 1);
+    reordenados.splice(indiceDestino, 0, movido);
+    setArquivosExistentes(reordenados);
+
+    try {
+      await reorderCreativeFiles(creative.id, reordenados.map((a) => a.id));
+    } catch (err) {
+      console.error(err);
+      setArquivosExistentes(arquivosExistentes);
     }
   }
 
@@ -704,15 +728,34 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
                         {arquivosExistentes.map((a) => (
                           <div
                             key={a.id}
-                            onClick={() => !trocandoCapa && trocarCapa(a.id)}
-                            title="Clique para tornar a capa"
-                            style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", background: "var(--bg)", cursor: trocandoCapa ? "default" : "pointer", opacity: trocandoCapa ? 0.6 : 1 }}
+                            draggable={!trocandoCapa}
+                            onDragStart={(e) => { e.stopPropagation(); setArrastandoId(a.id); }}
+                            onDragEnd={() => setArrastandoId(null)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (arrastandoId) reordenarArquivoExistente(arrastandoId, a.id); }}
+                            title="Arraste para reordenar"
+                            style={{
+                              position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", background: "var(--bg)",
+                              cursor: trocandoCapa ? "default" : "grab",
+                              opacity: trocandoCapa ? 0.6 : (arrastandoId === a.id ? 0.55 : 1),
+                              boxShadow: arrastandoId === a.id ? "0 6px 16px rgba(20,33,61,0.28)" : "none",
+                              transform: arrastandoId === a.id ? "scale(0.96)" : "scale(1)",
+                              transition: "opacity 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
+                            }}
                           >
                             {a.tipo_midia === "video" ? (
                               <video src={a.cloudinary_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             ) : (
                               <img src={a.cloudinary_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             )}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); if (!trocandoCapa) trocarCapa(a.id); }}
+                              title="Tornar capa"
+                              style={{ position: "absolute", top: 2, left: 2, width: 18, height: 18, borderRadius: "50%", border: "none", background: "rgba(20,33,61,0.75)", color: "#fff", cursor: trocandoCapa ? "default" : "pointer", fontSize: 11, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+                            >
+                              ★
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); removerArquivoExistente(a.id); }}
@@ -767,7 +810,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
                     )}
                     {isEdit && arquivosExistentes.length > 0 && (
                       <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--text-secondary)" }}>
-                        {trocandoCapa ? "Trocando capa..." : "Clique numa miniatura pra torná-la a capa do card."}
+                        {trocandoCapa ? "Trocando capa..." : "Clique na estrela ★ para tornar a capa do card. Arraste para reordenar."}
                       </p>
                     )}
                     <button

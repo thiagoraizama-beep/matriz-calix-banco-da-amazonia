@@ -49,6 +49,18 @@ export async function addCreativeFiles(creativeId, files) {
   return inseridos;
 }
 
+// Reordena os arquivos ADICIONAIS de um criativo (drag-and-drop no formulario
+// de edicao) -- fileIds e a lista completa dos ids de creative_files na nova
+// ordem desejada. A capa (creatives.cloudinary_url) fica sempre em primeiro
+// no carrossel/zip (ver useSlides no frontend e gerarZipDoCreative acima),
+// essa funcao so reordena os EXTRAS entre si.
+export async function reordenarCreativeFiles(creativeId, fileIds) {
+  for (let i = 0; i < fileIds.length; i++) {
+    await query("UPDATE creative_files SET ordem = $1 WHERE id = $2 AND creative_id = $3", [i, fileIds[i], creativeId]);
+  }
+  return listFilesByCreative(creativeId);
+}
+
 export async function removeCreativeFile(fileId) {
   const { rows } = await query("SELECT * FROM creative_files WHERE id = $1", [fileId]);
   const arquivo = rows[0];

@@ -5,6 +5,7 @@ import Spinner from "../common/Spinner.jsx";
 import CommentsTab from "./CommentsTab.jsx";
 import { OrcamentoBar } from "./CreativeGridCard.jsx";
 import KeywordCloud from "./KeywordCloud.jsx";
+import MediaCarousel from "./MediaCarousel.jsx";
 import { getPerformancePorCampanha } from "../../api/client.js";
 
 const EMPTY_FILTERS = {};
@@ -23,14 +24,6 @@ function CloseIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ direcao }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-      <path d={direcao === "esquerda" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
     </svg>
   );
 }
@@ -120,8 +113,6 @@ export default function CreativeFusedDetailModal({
   // usuario estava vendo, nao a lista bruta sem filtro.
   const indiceAtual = listaNavegacao?.findIndex((c) => c.id === creative.id) ?? -1;
   const temNavegacao = Boolean(onNavegar) && Array.isArray(listaNavegacao) && indiceAtual !== -1;
-  const podeAnterior = temNavegacao && indiceAtual > 0;
-  const podeProximo = temNavegacao && indiceAtual < listaNavegacao.length - 1;
 
   function irPara(novoIndice) {
     if (novoIndice < 0 || novoIndice >= listaNavegacao.length) return;
@@ -169,35 +160,29 @@ export default function CreativeFusedDetailModal({
         animation: "creativeModalOverlayIn 0.15s ease-out",
       }}
     >
-      {temNavegacao && (
-        <button
-          onClick={(e) => { e.stopPropagation(); irPara(indiceAtual - 1); }}
-          disabled={!podeAnterior}
-          aria-label="Criativo anterior"
+      {temNavegacao && listaNavegacao.length > 1 && (
+        <div
+          onClick={(e) => e.stopPropagation()}
           style={{
-            position: "fixed", left: 16, top: "50%", transform: "translateY(-50%)", zIndex: 301,
-            display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%",
-            border: "none", cursor: podeAnterior ? "pointer" : "default", background: "rgba(20,33,61,0.55)", color: "#fff",
-            opacity: podeAnterior ? 1 : 0.3,
+            position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 301,
+            display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999,
+            background: "rgba(20,33,61,0.55)",
           }}
         >
-          <ChevronIcon direcao="esquerda" />
-        </button>
-      )}
-      {temNavegacao && (
-        <button
-          onClick={(e) => { e.stopPropagation(); irPara(indiceAtual + 1); }}
-          disabled={!podeProximo}
-          aria-label="Próximo criativo"
-          style={{
-            position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", zIndex: 301,
-            display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, borderRadius: "50%",
-            border: "none", cursor: podeProximo ? "pointer" : "default", background: "rgba(20,33,61,0.55)", color: "#fff",
-            opacity: podeProximo ? 1 : 0.3,
-          }}
-        >
-          <ChevronIcon direcao="direita" />
-        </button>
+          {listaNavegacao.map((c, i) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => irPara(i)}
+              aria-label={`Ir para o criativo ${i + 1}`}
+              style={{
+                width: i === indiceAtual ? 18 : 7, height: 7, borderRadius: 999, border: "none", cursor: "pointer",
+                background: i === indiceAtual ? "#fff" : "rgba(255,255,255,0.5)",
+                transition: "width 0.2s ease, background 0.2s ease", padding: 0, flexShrink: 0,
+              }}
+            />
+          ))}
+        </div>
       )}
       <div
         onClick={(e) => e.stopPropagation()}
@@ -213,18 +198,8 @@ export default function CreativeFusedDetailModal({
         <div style={{ position: "relative", flexShrink: 0, height: 320, background: "var(--bg)", borderRadius: "16px 16px 0 0", overflow: "hidden" }}>
           {creative.formato?.includes("Search") ? (
             <KeywordCloud palavrasChave={creative.search_campos?.palavrasChave} width={1040} height={320} />
-          ) : creative.tipo_midia === "video" ? (
-            <video
-              src={creative.cloudinary_url}
-              controls
-              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-            />
           ) : (
-            <img
-              src={creative.cloudinary_url}
-              alt={creative.nome}
-              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-            />
+            <MediaCarousel creative={creative} videoControls />
           )}
           <button
             onClick={onClose}

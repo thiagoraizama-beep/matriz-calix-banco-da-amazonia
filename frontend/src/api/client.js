@@ -371,6 +371,12 @@ export function setCreativeFileAsCapa(creativeId, fileId) {
   return api.patch(`/creatives/${creativeId}/files/${fileId}/capa`).then((r) => r.data);
 }
 
+// Reordena os arquivos ADICIONAIS via drag-and-drop -- fileIds e a lista
+// completa na nova ordem. Vale pro carrossel e pra numeracao do zip.
+export function reorderCreativeFiles(creativeId, fileIds) {
+  return api.put(`/creatives/${creativeId}/files/ordem`, { fileIds }).then((r) => r.data);
+}
+
 // Baixa todos os arquivos do criativo (principal + extras) num .zip -- usado
 // pelo botao "Baixar" do card quando o criativo tem mais de 1 arquivo.
 export function toDownloadZipUrl(creativeId) {

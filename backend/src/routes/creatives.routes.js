@@ -24,7 +24,7 @@ import {
 } from "../services/commentsService.js";
 import { listarOperacoesBulk, desfazerOperacaoBulk, desfazerItemBulk } from "../services/bulkEditService.js";
 import { gerarExportacaoMatriz, listPlataformasDaCampanha } from "../services/creativesExportService.js";
-import { listFilesByCreative, addCreativeFiles, removeCreativeFile, gerarZipDoCreative, definirCapa } from "../services/creativeFilesService.js";
+import { listFilesByCreative, addCreativeFiles, removeCreativeFile, gerarZipDoCreative, definirCapa, reordenarCreativeFiles } from "../services/creativeFilesService.js";
 import {
   getCampanhaSheetSyncConfig, upsertCampanhaSheetSync, getSheetSyncSelecao,
   setSheetSyncSelecao, sincronizarCampanha,
@@ -358,6 +358,19 @@ router.delete("/:id/files/:fileId", requireRole("agencia"), async (req, res, nex
     const removido = await removeCreativeFile(req.params.fileId);
     if (!removido) return res.status(404).json({ error: "Arquivo não encontrado" });
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Reordena os arquivos ADICIONAIS via drag-and-drop no formulario de edicao
+// -- fileIds e a lista completa (todos os ids de creative_files do criativo)
+// na nova ordem. Essa ordem vale pro carrossel e pra numeracao do zip.
+router.put("/:id/files/ordem", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const { fileIds } = req.body;
+    if (!Array.isArray(fileIds)) return res.status(400).json({ error: "fileIds deve ser uma lista" });
+    res.json(await reordenarCreativeFiles(req.params.id, fileIds));
   } catch (err) {
     next(err);
   }

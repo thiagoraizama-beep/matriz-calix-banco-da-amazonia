@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import StatusBadge from "./statusBadge.jsx";
 import { labelUrgencia } from "../../utils/urgencia.js";
 import KeywordCloud from "./KeywordCloud.jsx";
+import MediaCarousel from "./MediaCarousel.jsx";
 import { toDownloadZipUrl } from "../../api/client.js";
 
 function formatPeriodo(inicio, fim) {
@@ -375,18 +376,8 @@ export default function CreativeGridCard({
       >
         {creative.formato?.includes("Search") ? (
           <KeywordCloud palavrasChave={creative.search_campos?.palavrasChave} />
-        ) : creative.tipo_midia === "video" ? (
-          <video
-            src={creative.cloudinary_url}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-          />
         ) : (
-          <img src={creative.cloudinary_url} alt={creative.nome} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          <MediaCarousel creative={creative} mostrarIndicadores={false} />
         )}
         {selectable && (
           <div
