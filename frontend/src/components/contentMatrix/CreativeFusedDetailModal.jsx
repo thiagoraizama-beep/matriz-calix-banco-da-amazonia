@@ -161,28 +161,41 @@ export default function CreativeFusedDetailModal({
       }}
     >
       {temNavegacao && listaNavegacao.length > 1 && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 301,
-            display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999,
-            background: "rgba(20,33,61,0.55)",
-          }}
-        >
-          {listaNavegacao.map((c, i) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => irPara(i)}
-              aria-label={`Ir para o criativo ${i + 1}`}
-              style={{
-                width: i === indiceAtual ? 18 : 7, height: 7, borderRadius: 999, border: "none", cursor: "pointer",
-                background: i === indiceAtual ? "#fff" : "rgba(255,255,255,0.5)",
-                transition: "width 0.2s ease, background 0.2s ease", padding: 0, flexShrink: 0,
-              }}
-            />
-          ))}
-        </div>
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); irPara(indiceAtual - 1); }}
+            disabled={indiceAtual <= 0}
+            aria-label="Criativo anterior"
+            className="creative-nav-arrow"
+            style={{
+              position: "fixed", left: 20, top: "50%", transform: "translateY(-50%)", zIndex: 301,
+              width: 34, height: 34, borderRadius: "50%", border: "none", cursor: indiceAtual <= 0 ? "default" : "pointer",
+              background: "transparent", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+              opacity: indiceAtual <= 0 ? 0.25 : 0.8, transition: "opacity 0.15s ease, background 0.15s ease",
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="M15 6l-6 6 6 6" /></svg>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); irPara(indiceAtual + 1); }}
+            disabled={indiceAtual >= listaNavegacao.length - 1}
+            aria-label="Próximo criativo"
+            className="creative-nav-arrow"
+            style={{
+              position: "fixed", right: 20, top: "50%", transform: "translateY(-50%)", zIndex: 301,
+              width: 34, height: 34, borderRadius: "50%", border: "none", cursor: indiceAtual >= listaNavegacao.length - 1 ? "default" : "pointer",
+              background: "transparent", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+              opacity: indiceAtual >= listaNavegacao.length - 1 ? 0.25 : 0.8, transition: "opacity 0.15s ease, background 0.15s ease",
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+          <style>{`
+            .creative-nav-arrow:not(:disabled):hover { opacity: 1 !important; background: rgba(20,33,61,0.35) !important; }
+          `}</style>
+        </>
       )}
       <div
         onClick={(e) => e.stopPropagation()}

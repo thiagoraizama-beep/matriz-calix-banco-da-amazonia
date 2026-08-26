@@ -32,17 +32,25 @@ export const STATUS_OPTIONS_VEICULO = [
 
 export const STATUS_OPTIONS = STATUS_OPTIONS_AGENCIA;
 
-export default function StatusBadge({ status }) {
+// truncate: usado em espacos apertados (ex: card da grade com badge de
+// urgencia + botoes ao lado) -- trunca o proprio texto com "..." em vez de
+// deixar o badge inteiro estourar e empurrar os botoes de acao pra fora.
+export default function StatusBadge({ status, truncate = false }) {
   const style = STATUS_COLORS[status] || { color: "var(--text-secondary)", bg: "var(--border)" };
   return (
     <span
+      title={truncate ? status : undefined}
       style={{
         display: "inline-block",
+        maxWidth: truncate ? "100%" : undefined,
         padding: "3px 10px",
         borderRadius: 999,
         fontSize: 11,
         fontWeight: 600,
         whiteSpace: "nowrap",
+        overflow: truncate ? "hidden" : undefined,
+        textOverflow: truncate ? "ellipsis" : undefined,
+        boxSizing: "border-box",
         color: style.color,
         background: style.bg,
       }}

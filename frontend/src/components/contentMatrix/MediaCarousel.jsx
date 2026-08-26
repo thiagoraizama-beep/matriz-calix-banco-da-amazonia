@@ -131,7 +131,13 @@ export default function MediaCarousel({ creative, autoplay = true, objectFit = "
             .media-carousel-arrow:hover { opacity: 1 !important; background: rgba(20,33,61,0.4) !important; }
           `}</style>
           {mostrarIndicadores && (
-            <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
+            <div
+              style={{
+                position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)",
+                display: "flex", alignItems: "center", gap: 5, padding: "4px 8px", borderRadius: 999,
+                background: "rgba(20,33,61,0.35)",
+              }}
+            >
               {slides.map((_, i) => (
                 <button
                   key={i}
@@ -140,8 +146,9 @@ export default function MediaCarousel({ creative, autoplay = true, objectFit = "
                   aria-label={`Ir para o slide ${i + 1}`}
                   style={{
                     width: i === indice ? 16 : 6, height: 6, borderRadius: 999, border: "none", cursor: "pointer",
-                    background: i === indice ? "#fff" : "rgba(255,255,255,0.55)",
-                    transition: "width 0.25s ease, background 0.25s ease", padding: 0,
+                    background: i === indice ? "#fff" : "rgba(255,255,255,0.6)",
+                    boxShadow: "0 0 1px rgba(0,0,0,0.4)",
+                    transition: "width 0.25s ease, background 0.25s ease", padding: 0, flexShrink: 0,
                   }}
                 />
               ))}

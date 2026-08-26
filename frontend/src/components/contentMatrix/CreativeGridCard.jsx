@@ -322,12 +322,16 @@ export default function CreativeGridCard({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {!esconderStatusBadge && <StatusBadge status={creative.status} />}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, flex: 1 }}>
+          {!esconderStatusBadge && (
+            <span style={{ minWidth: 0 }}>
+              <StatusBadge status={creative.status} truncate />
+            </span>
+          )}
           {urgenciaLabel && (
             <span
               style={{
-                fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
+                fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, flexShrink: 0,
                 textTransform: "uppercase", letterSpacing: "0.02em", color: "#c77f1a", background: "rgba(199,127,26,0.12)",
               }}
             >
@@ -341,7 +345,7 @@ export default function CreativeGridCard({
               disabled={updatingStatus}
               title="Alterar status"
               style={{
-                display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22,
+                display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, flexShrink: 0,
                 borderRadius: 6, border: "none", background: "transparent",
                 cursor: updatingStatus ? "default" : "pointer", color: "var(--text-secondary)",
                 opacity: updatingStatus ? 0.5 : 1,
@@ -357,7 +361,7 @@ export default function CreativeGridCard({
             onClick={toggleMenu}
             title="Mais ações"
             style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               width: 26, height: 26, borderRadius: 7, border: "none", background: "transparent",
               color: "var(--text-secondary)", cursor: "pointer",
             }}
