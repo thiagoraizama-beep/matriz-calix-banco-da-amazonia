@@ -322,7 +322,7 @@ export default function CreativeGridCard({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, flex: "1 1 auto", flexWrap: "wrap", rowGap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
           {!esconderStatusBadge && <StatusBadge status={creative.status} />}
           {!selectable && statusOptions && (
             <button
