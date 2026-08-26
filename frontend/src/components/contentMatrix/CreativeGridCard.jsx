@@ -324,16 +324,6 @@ export default function CreativeGridCard({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, flex: "1 1 auto", flexWrap: "wrap", rowGap: 4 }}>
           {!esconderStatusBadge && <StatusBadge status={creative.status} />}
-          {urgenciaLabel && (
-            <span
-              style={{
-                fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, flexShrink: 0,
-                textTransform: "uppercase", letterSpacing: "0.02em", color: "#c77f1a", background: "rgba(199,127,26,0.12)",
-              }}
-            >
-              {urgenciaLabel}
-            </span>
-          )}
           {!selectable && statusOptions && (
             <button
               ref={statusBtnRef}
@@ -393,6 +383,17 @@ export default function CreativeGridCard({
               </svg>
             )}
           </div>
+        )}
+        {urgenciaLabel && (
+          <span
+            style={{
+              position: "absolute", top: 8, left: 8,
+              fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
+              textTransform: "uppercase", letterSpacing: "0.02em", color: "#fff", background: "#c77f1a",
+            }}
+          >
+            {urgenciaLabel}
+          </span>
         )}
         {!modoKanban && formatPeriodo(creative.periodo_inicio, creative.periodo_fim) && (
           <span
