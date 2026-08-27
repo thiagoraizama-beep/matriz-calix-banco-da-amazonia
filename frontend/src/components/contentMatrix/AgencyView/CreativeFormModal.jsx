@@ -4,6 +4,21 @@ import SearchSelect from "../../layout/SearchSelect.jsx";
 import MultiSearchSelect from "../../layout/MultiSearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
 
+// Extrai uma mensagem SEMPRE em texto puro do erro de uma requisicao --
+// nunca retorna o objeto de erro em si. Renderizar {error} direto no JSX
+// quebra o React (error #31, "objects are not valid as a React child") se
+// o valor nao for string -- acontecia com erro 413 (arquivo grande demais),
+// onde a Vercel intercepta a requisicao antes do Express e devolve um corpo
+// que nao e o { error: "..." } esperado.
+function mensagemDeErro(err) {
+  if (err?.response?.status === 413) {
+    return "Arquivo grande demais para enviar. Tente um arquivo menor (o limite prático é bem menor que os 100MB permitidos pelo backend, por causa do servidor).";
+  }
+  const dado = err?.response?.data?.error;
+  if (typeof dado === "string" && dado) return dado;
+  return "Erro ao salvar criativo";
+}
+
 const TODOS_FORMATOS = [
   "Performance Max", "Search",
   "Feed", "Stories", "Reels", "Carrossel", "Coleção", "Instant Experience", "Messenger",
@@ -459,7 +474,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
       onSaved();
       onClose();
     } catch (err) {
-      setError(err.response?.data?.error || "Erro ao salvar criativo");
+      setError(mensagemDeErro(err));
     } finally {
       setSaving(false);
     }
