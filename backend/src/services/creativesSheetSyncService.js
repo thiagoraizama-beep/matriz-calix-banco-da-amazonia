@@ -106,10 +106,15 @@ function valoresDaLinha(c, colunas) {
     descricao: c.observacoes || "",
     // Mesma regra do Excel (creativesExportService.js): varios arquivos ->
     // link pro zip com token proprio (sem sessao); arquivo unico -> URL do
-    // Cloudinary com download forcado, senao abre so a previa no navegador.
+    // Cloudinary com download forcado. cloudinary_url tem prioridade sobre
+    // link_postagem -- Impulsionado pode ter imagem/video de preview
+    // cadastrada (upload opcional), e esse arquivo e sempre baixavel; ja o
+    // link_postagem e o link do POST publicado (Instagram/Facebook/Google
+    // Ads), nao um arquivo pra baixar. So cai pra link_postagem quando nao
+    // ha nenhum arquivo cadastrado, na falta de algo melhor.
     linkPeca: Number(c.arquivos_extras) > 0
       ? `${BACKEND_URL}/api/download/creatives/${c.id}/files/zip?token=${gerarTokenDownload(c.id)}`
-      : urlComDownloadForcado(c.link_postagem || c.cloudinary_url || ""),
+      : urlComDownloadForcado(c.cloudinary_url || c.link_postagem || ""),
     peca: temUnicoFormatoSearch ? "Rede de Pesquisa" : (thumbUrl ? `=IMAGE("${thumbUrl}")` : ""),
     impulsionadoDark: c.impulsionado ? "Impulsionado" : "Dark",
     perfilVeiculacao: "",

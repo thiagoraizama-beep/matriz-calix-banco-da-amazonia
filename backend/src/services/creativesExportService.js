@@ -243,9 +243,11 @@ async function gerarExcelMatriz(creatives, campanha, plataformas, baseUrl, campa
         // zip com todos -- so o cloudinary_url da capa perderia os extras.
         // Token proprio (sem expirar, escopado so a esse criativo) pra
         // funcionar clicando direto do Excel, sem sessao logada.
+        // cloudinary_url tem prioridade sobre link_postagem -- ver
+        // creativesSheetSyncService.js pro mesmo raciocinio.
         linkPeca: Number(c.arquivos_extras) > 0
           ? `${baseUrl}/api/download/creatives/${c.id}/files/zip?token=${gerarTokenDownload(c.id)}`
-          : urlComDownloadForcado(c.link_postagem || c.cloudinary_url || ""),
+          : urlComDownloadForcado(c.cloudinary_url || c.link_postagem || ""),
         // Search puro nao tem peca visual (so texto) -- em vez de deixar a
         // celula em branco, indica que aquele criativo e Rede de Pesquisa.
         peca: Array.isArray(c.formato) && c.formato.length === 1 && c.formato[0] === "Search" ? "Rede de Pesquisa" : "",
