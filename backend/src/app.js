@@ -12,6 +12,7 @@ import statusSyncRoutes from "./routes/statusSync.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import lixeiraRoutes from "./routes/lixeira.routes.js";
 import creativesDownloadRoutes from "./routes/creativesDownload.routes.js";
+import creativeSheetLinkSyncRoutes from "./routes/creativeSheetLinkSync.routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const app = express();
@@ -37,6 +38,8 @@ app.use("/api/creative-analysis", requireAuth, creativeAnalysisRoutes);
 // (sem cookie de sessao) e se autentica via CRON_SECRET; a rota /campanhas/:id aplica
 // requireAuth internamente.
 app.use("/api/status-sync", statusSyncRoutes);
+// Mesmo padrao acima -- so a rota /cron, autenticada por CRON_SECRET.
+app.use("/api/creative-sheet-link-sync", creativeSheetLinkSyncRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 

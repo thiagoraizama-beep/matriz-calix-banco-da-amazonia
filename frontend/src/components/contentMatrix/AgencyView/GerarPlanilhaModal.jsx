@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   getCreativesByCampanha, exportCreativesExcel,
-  getSheetSyncStatus, saveSheetSync,
+  getSheetSyncStatus, saveSheetSync, sincronizarLinkPublicacaoDaPlanilha,
 } from "../../../api/client.js";
 import { extrairSpreadsheetId } from "../../../utils/extrairSpreadsheetId.js";
 import ColunasConfigSection from "./ColunasConfigSection.jsx";
@@ -27,6 +27,8 @@ export default function GerarPlanilhaModal({ campanhaId, campanhaNome, onClose }
   const [trocandoPlanilha, setTrocandoPlanilha] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [publicando, setPublicando] = useState(false);
+  const [verificandoLinks, setVerificandoLinks] = useState(false);
+  const [linksVerificadosEm, setLinksVerificadosEm] = useState(null);
   const [erro, setErro] = useState("");
 
   useEffect(() => {
@@ -107,6 +109,19 @@ export default function GerarPlanilhaModal({ campanhaId, campanhaNome, onClose }
       setErro(err.response?.data?.error || "Não foi possível publicar na planilha.");
     } finally {
       setPublicando(false);
+    }
+  }
+
+  async function handleVerificarLinks() {
+    setVerificandoLinks(true);
+    setErro("");
+    try {
+      await sincronizarLinkPublicacaoDaPlanilha(campanhaId);
+      setLinksVerificadosEm(new Date());
+    } catch (err) {
+      setErro(err.response?.data?.error || "Não foi possível verificar os links da planilha.");
+    } finally {
+      setVerificandoLinks(false);
     }
   }
 
@@ -222,6 +237,33 @@ export default function GerarPlanilhaModal({ campanhaId, campanhaNome, onClose }
                   Sincronizado às {new Date(sheetStatus.ultimaSincronizacaoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                 </p>
               )}
+
+              {planilhaJaVinculada && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={handleVerificarLinks}
+                    disabled={verificandoLinks}
+                    style={{
+                      background: "none", border: "1px solid var(--border)", borderRadius: 999, padding: "5px 10px",
+                      fontSize: 11.5, fontWeight: 600, color: "var(--text-primary)", cursor: verificandoLinks ? "default" : "pointer",
+                      opacity: verificandoLinks ? 0.6 : 1,
+                    }}
+                  >
+                    {verificandoLinks ? "Verificando..." : "Verificar links da planilha"}
+                  </button>
+                  {linksVerificadosEm && !verificandoLinks && (
+                    <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                      Ok às {linksVerificadosEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+              )}
+              <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--text-secondary)" }}>
+                Preencheu "Link da publicação" direto na planilha? Isso é lido automaticamente
+                (1x por dia, ou clicando acima) e aplicado nos criativos Impulsionados. Os
+                demais campos da planilha continuam só de leitura.
+              </p>
             </div>
 
             {erro && <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--danger)" }}>{erro}</p>}

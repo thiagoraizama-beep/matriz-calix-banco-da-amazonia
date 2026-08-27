@@ -29,6 +29,10 @@
     {
       "path": "/api/status-sync/cron",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/creative-sheet-link-sync/cron",
+      "schedule": "0 7 * * *"
     }
   ]
 }

@@ -343,6 +343,13 @@ export function saveSheetSync(campanhaId, { spreadsheetId, creativeIds }) {
   return api.put(`/creatives/sheet-sync/${campanhaId}`, { spreadsheetId, creativeIds }).then((r) => r.data);
 }
 
+// Le "Link da publicação" preenchido manualmente na planilha e aplica nos
+// criativos Impulsionados correspondentes (link_postagem) -- roda sozinho
+// 1x/dia via cron, este botao puxa a checagem na hora.
+export function sincronizarLinkPublicacaoDaPlanilha(campanhaId) {
+  return api.post(`/creative-sheet-link-sync/campanhas/${campanhaId}`).then((r) => r.data);
+}
+
 // Colunas disponiveis pra exportar (base + so-Google) e a config atual de
 // quais aparecem por plataforma/criativo -- popula a secao "Colunas" do
 // modal "Gerar planilha".

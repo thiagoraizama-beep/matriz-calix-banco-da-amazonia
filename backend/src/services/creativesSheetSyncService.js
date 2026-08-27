@@ -83,6 +83,13 @@ export async function setSheetSyncSelecao(campanhaId, creativeIds) {
 // em vez de exigir uma env var propria so pra isso.
 const BACKEND_URL = process.env.FRONTEND_URL || "http://localhost:4000";
 
+// Coluna oculta de ID, sempre a ULTIMA da linha, fora do sistema de colunas
+// configuraveis (creativesColumnsConfigService.js) -- o usuario nunca pode
+// remove-la nem ela aparece no Excel (so existe aqui, no Sheets). Existe so
+// pra sincronizarLinkPublicacao (abaixo) casar cada linha da planilha com o
+// criativo certo sem depender de texto que pode mudar (Ad Name, titulo).
+const COLUNA_ID = { header: "ID (não editar)", key: "idInterno", width: 90 };
+
 function valoresDaLinha(c, colunas) {
   const temUnicoFormatoSearch = Array.isArray(c.formato) && c.formato.length === 1 && c.formato[0] === "Search";
   const thumbUrl = urlThumbnail(c.cloudinary_url, c.tipo_midia);
@@ -123,6 +130,7 @@ function valoresDaLinha(c, colunas) {
     searchTitulosLongos: listaNumerada(c.search_campos?.tituloLongo, "Título longo"),
     searchTextos: listaNumerada(c.search_campos?.texto, "Descrição"),
     searchPalavrasChave: c.search_campos?.palavrasChave || "",
+    idInterno: c.id,
   };
 
   return colunas.map((col) => mapa[col.key] ?? "");
@@ -286,7 +294,7 @@ export async function sincronizarCampanha(campanhaId) {
       const sheetId = await garantirAba(sheets, spreadsheetId, nomeAba, abasExistentes);
 
       const creativesDaAba = porPlataforma.get(plataforma);
-      const colunas = resolverColunasDaAba(colunasConfig, plataforma, creativesDaAba);
+      const colunas = [...resolverColunasDaAba(colunasConfig, plataforma, creativesDaAba), COLUNA_ID];
       const linhas = [
         ...linhasDeCabecalho(nomeCampanha, colunas),
         ...creativesDaAba.map((c) => valoresDaLinha(c, colunas)),
@@ -353,5 +361,67 @@ export async function sincronizarTodasAsCampanhas() {
   const { rows } = await query("SELECT campanha_id FROM campanha_sheets_sync");
   for (const { campanha_id } of rows) {
     await sincronizarCampanha(campanha_id);
+  }
+}
+
+// Unica via PLANILHA -> SISTEMA: le "Link da publicação" de cada aba e
+// aplica em creatives.link_postagem, casando cada linha pelo id oculto na
+// coluna COLUNA_ID (nunca por texto como Ad Name/titulo, que podem mudar ou
+// ficar vazios). So aplica em criativos Impulsionados -- Dark Post nao tem
+// link de publicacao proprio. Todo o resto dos campos continua uma via so
+// (Sistema -> Planilha, ver sincronizarCampanha acima); editar Formato,
+// Legenda etc na planilha nao tem efeito nenhum no sistema.
+export async function sincronizarLinkPublicacaoDaPlanilha(campanhaId) {
+  const config = await getCampanhaSheetSyncConfig(campanhaId);
+  if (!config) return;
+
+  const sheets = await getSheetsClient();
+  const spreadsheetId = config.spreadsheet_id;
+  const { data } = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties.title" });
+  const nomesAbas = (data.sheets || []).map((s) => s.properties.title);
+
+  for (const nomeAba of nomesAbas) {
+    const { data: valoresResp } = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${nomeAba}'!A3:Z`, // linha 3 = cabecalho de colunas, dados a partir da 4
+      valueRenderOption: "UNFORMATTED_VALUE",
+    });
+    const linhas = valoresResp.values || [];
+    if (linhas.length === 0) continue;
+
+    const cabecalho = linhas[0];
+    const idxId = cabecalho.indexOf(COLUNA_ID.header);
+    const idxLink = cabecalho.indexOf("Link da publicação");
+    if (idxId === -1 || idxLink === -1) continue; // aba antiga, sem essas colunas ainda
+
+    for (const linha of linhas.slice(1)) {
+      const creativeId = Number(linha[idxId]);
+      const linkPlanilha = (linha[idxLink] || "").toString().trim();
+      if (!creativeId || !linkPlanilha) continue;
+
+      // So aplica em Impulsionado, e so quando o link mudou de verdade --
+      // evita UPDATE (e disparo de agendarSyncSheet) a toda checagem sem
+      // necessidade nenhuma.
+      await query(
+        `UPDATE creatives SET link_postagem = $2, atualizado_em = now()
+         WHERE id = $1 AND impulsionado = true AND excluido_em IS NULL
+           AND COALESCE(link_postagem, '') != $2`,
+        [creativeId, linkPlanilha]
+      );
+    }
+  }
+}
+
+// Cron de seguranca (mesma cadencia do sincronizarTodasAsCampanhas) --
+// varre toda campanha com planilha vinculada em busca de link de publicacao
+// preenchido manualmente na planilha.
+export async function sincronizarLinksPublicacaoDeTodasAsCampanhas() {
+  const { rows } = await query("SELECT campanha_id FROM campanha_sheets_sync");
+  for (const { campanha_id } of rows) {
+    try {
+      await sincronizarLinkPublicacaoDaPlanilha(campanha_id);
+    } catch (err) {
+      console.error(`sincronizarLinkPublicacaoDaPlanilha falhou pra campanha ${campanha_id}:`, err);
+    }
   }
 }
