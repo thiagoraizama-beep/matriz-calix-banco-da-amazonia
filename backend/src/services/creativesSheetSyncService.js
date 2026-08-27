@@ -125,7 +125,9 @@ function valoresDaLinha(c, colunas) {
     // sincronizarLinkPublicacaoDaPlanilha): escreve o valor ja salvo no
     // banco, senao a proxima sincronizacao normal (Sistema -> Planilha)
     // limpava a celula que o usuario tinha acabado de preencher a mao.
-    linkPublicacao: c.impulsionado ? (c.link_postagem || "") : "",
+    // Impulsionado sem link ainda -- "-" sinaliza "falta preencher" em vez
+    // de deixar a celula vazia sem nenhuma pista.
+    linkPublicacao: c.impulsionado ? (c.link_postagem || "-") : "",
     dataInicio: formatarData(c.periodo_inicio),
     dataFim: formatarData(c.periodo_fim),
     formularioCaptura: c.tipos_compra?.includes("CPL") ? (c.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa") : "",
@@ -401,7 +403,9 @@ export async function sincronizarLinkPublicacaoDaPlanilha(campanhaId) {
     for (const linha of linhas.slice(1)) {
       const creativeId = Number(linha[idxId]);
       const linkPlanilha = (linha[idxLink] || "").toString().trim();
-      if (!creativeId || !linkPlanilha) continue;
+      // "-" e o placeholder escrito pelo proprio sistema (valoresDaLinha,
+      // acima) quando ainda nao ha link -- nunca um link de verdade.
+      if (!creativeId || !linkPlanilha || linkPlanilha === "-") continue;
 
       // So aplica em Impulsionado, e so quando o link mudou de verdade --
       // evita UPDATE (e disparo de agendarSyncSheet) a toda checagem sem
