@@ -259,7 +259,7 @@ async function gerarExcelMatriz(creatives, campanha, plataformas, baseUrl, campa
           ? Number(c.orcamento_projetado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
           : "",
         urlDestino: c.url_destino || "",
-        linkPublicacao: "",
+        linkPublicacao: c.impulsionado ? (c.link_postagem || "") : "",
         dataInicio: formatarData(c.periodo_inicio),
         dataFim: formatarData(c.periodo_fim),
         searchTitulos: listaNumerada(c.search_campos?.titulo, "Título"),

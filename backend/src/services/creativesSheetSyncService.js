@@ -121,7 +121,11 @@ function valoresDaLinha(c, colunas) {
       ? Number(c.orcamento_projetado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
       : "",
     urlDestino: c.url_destino || "",
-    linkPublicacao: "",
+    // Unico campo com via PLANILHA -> SISTEMA (ver
+    // sincronizarLinkPublicacaoDaPlanilha): escreve o valor ja salvo no
+    // banco, senao a proxima sincronizacao normal (Sistema -> Planilha)
+    // limpava a celula que o usuario tinha acabado de preencher a mao.
+    linkPublicacao: c.impulsionado ? (c.link_postagem || "") : "",
     dataInicio: formatarData(c.periodo_inicio),
     dataFim: formatarData(c.periodo_fim),
     formularioCaptura: c.tipos_compra?.includes("CPL") ? (c.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa") : "",
