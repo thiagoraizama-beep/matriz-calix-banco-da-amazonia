@@ -396,7 +396,7 @@ export async function createCreative({
 // operacao "de 1 criativo" (o que fragmentaria uma edicao em massa em N
 // operacoes separadas no painel "Ultimas edições em massa").
 export async function updateCreative(id, {
-  file,
+  file, cloudinaryUrl, cloudinaryPublicId, tipoMidia: tipoMidiaParam,
   nome, adName, campanha, campaignName, conjunto, descricao, observacoes,
   periodoInicio, periodoFim, veiculo, plataforma, formato, posicionamento,
   urlDestino, impulsionado, segmentacao, titulo, tiposCompra, campanhaVeiculoId,
@@ -418,6 +418,10 @@ export async function updateCreative(id, {
     throw err;
   }
 
+  // cloudinaryUrl/cloudinaryPublicId: arquivo ja enviado direto do navegador
+  // pro Cloudinary (ver gerarAssinaturaUpload) -- usado pra videos grandes,
+  // que dariam erro 413 se subissem pelo backend na Vercel. file continua
+  // valendo pra imagens/videos pequenos, enviados via multipart normal.
   let midiaFields = { publicId: null, secureUrl: null, tipoMidia: null };
   if (file) {
     const upload = await uploadToCloudinary(file.buffer, file.mimetype, process.env.CLOUDINARY_CREATIVES_FOLDER);
@@ -425,6 +429,12 @@ export async function updateCreative(id, {
       publicId: upload.public_id,
       secureUrl: upload.secure_url,
       tipoMidia: upload.resource_type === "video" ? "video" : "image",
+    };
+  } else if (cloudinaryUrl) {
+    midiaFields = {
+      publicId: cloudinaryPublicId,
+      secureUrl: cloudinaryUrl,
+      tipoMidia: tipoMidiaParam || "image",
     };
   }
 

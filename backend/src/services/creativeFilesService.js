@@ -49,6 +49,32 @@ export async function addCreativeFiles(creativeId, files) {
   return inseridos;
 }
 
+// Mesmo resultado de addCreativeFiles, mas pra arquivos JA enviados direto
+// do navegador pro Cloudinary (ver uploadDireto no frontend / gerarAssinaturaUpload
+// no backend) -- so registra a URL no banco, sem reenviar o arquivo. Usado
+// pra videos grandes, que dariam erro 413 se subissem via multipart pelo backend.
+export async function addCreativeFilesJaEnviados(creativeId, arquivos) {
+  if (!arquivos?.length) return [];
+
+  const { rows: maxRows } = await query(
+    "SELECT COALESCE(MAX(ordem), -1) AS max_ordem FROM creative_files WHERE creative_id = $1",
+    [creativeId]
+  );
+  let proximaOrdem = maxRows[0].max_ordem + 1;
+
+  const inseridos = [];
+  for (const arquivo of arquivos) {
+    const { rows } = await query(
+      `INSERT INTO creative_files (creative_id, cloudinary_public_id, cloudinary_url, tipo_midia, ordem)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [creativeId, arquivo.cloudinaryPublicId, arquivo.cloudinaryUrl, arquivo.tipoMidia, proximaOrdem]
+    );
+    inseridos.push(rows[0]);
+    proximaOrdem += 1;
+  }
+  return inseridos;
+}
+
 // Reordena os arquivos ADICIONAIS de um criativo (drag-and-drop no formulario
 // de edicao) -- fileIds e a lista completa dos ids de creative_files na nova
 // ordem desejada. A capa (creatives.cloudinary_url) fica sempre em primeiro

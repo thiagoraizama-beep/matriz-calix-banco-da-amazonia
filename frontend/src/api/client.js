@@ -372,6 +372,12 @@ export function addCreativeFiles(creativeId, files) {
   return api.post(`/creatives/${creativeId}/files`, fd).then((r) => r.data);
 }
 
+// Registra arquivos ja enviados via uploadDireto (ver acima) -- so grava a
+// URL, sem reenviar o arquivo pelo backend.
+export function addCreativeFilesJaEnviados(creativeId, arquivos) {
+  return api.post(`/creatives/${creativeId}/files/ja-enviados`, { arquivos }).then((r) => r.data);
+}
+
 // Troca qual arquivo e a capa do criativo (so faz sentido em edicao, entre
 // arquivos ja salvos).
 export function setCreativeFileAsCapa(creativeId, fileId) {
@@ -382,6 +388,38 @@ export function setCreativeFileAsCapa(creativeId, fileId) {
 // completa na nova ordem. Vale pro carrossel e pra numeracao do zip.
 export function reorderCreativeFiles(creativeId, fileIds) {
   return api.put(`/creatives/${creativeId}/files/ordem`, { fileIds }).then((r) => r.data);
+}
+
+// Upload DIRETO do navegador pro Cloudinary, sem passar pelo backend --
+// contorna o limite de tamanho de corpo de requisicao da Vercel (~4.5MB,
+// bem menor que os 100MB que o backend aceitaria), que dava erro 413 em
+// videos. Pega a assinatura no backend (curta, so numeros/texto) e envia o
+// arquivo real direto pra api.cloudinary.com. onProgress(percent) opcional,
+// pra mostrar barra de progresso -- uploads grandes podem demorar.
+export async function uploadDireto(file, onProgress) {
+  const { data: assinatura } = await api.get("/creatives/upload-signature");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("api_key", assinatura.apiKey);
+  formData.append("timestamp", assinatura.timestamp);
+  formData.append("signature", assinatura.signature);
+  formData.append("folder", assinatura.folder);
+
+  const resourceType = file.type.startsWith("video") ? "video" : "image";
+  const { data } = await axios.post(
+    `https://api.cloudinary.com/v1_1/${assinatura.cloudName}/${resourceType}/upload`,
+    formData,
+    {
+      onUploadProgress: onProgress
+        ? (e) => onProgress(e.total ? Math.round((e.loaded / e.total) * 100) : 0)
+        : undefined,
+    }
+  );
+  return {
+    cloudinaryUrl: data.secure_url,
+    cloudinaryPublicId: data.public_id,
+    tipoMidia: data.resource_type === "video" ? "video" : "image",
+  };
 }
 
 // Baixa todos os arquivos do criativo (principal + extras) num .zip -- usado

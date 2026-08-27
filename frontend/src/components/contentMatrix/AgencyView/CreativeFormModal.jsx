@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { createMatrixCreative, createMatrixCreativeRascunho, updateMatrixCreative, deleteMatrixCreative, getCampanhas, getCreativeFiles, addCreativeFiles, removeCreativeFile, setCreativeFileAsCapa, reorderCreativeFiles } from "../../../api/client.js";
+import {
+  createMatrixCreative, createMatrixCreativeRascunho, updateMatrixCreative, deleteMatrixCreative,
+  getCampanhas, getCreativeFiles, addCreativeFiles, addCreativeFilesJaEnviados, removeCreativeFile,
+  setCreativeFileAsCapa, reorderCreativeFiles, uploadDireto,
+} from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
 import MultiSearchSelect from "../../layout/MultiSearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
@@ -18,6 +22,13 @@ function mensagemDeErro(err) {
   if (typeof dado === "string" && dado) return dado;
   return "Erro ao salvar criativo";
 }
+
+// Acima disso, o upload vai DIRETO do navegador pro Cloudinary (uploadDireto)
+// em vez de passar pelo backend -- a Vercel limita o corpo de uma requisicao
+// a poucos MB, bem menor que os 100MB que o backend aceitaria, e arquivos
+// maiores davam erro 413. Vale tanto pra imagem quanto video, mas na pratica
+// e video que costuma passar disso.
+const LIMITE_UPLOAD_DIRETO_BYTES = 4 * 1024 * 1024;
 
 const TODOS_FORMATOS = [
   "Performance Max", "Search",
@@ -292,7 +303,16 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     if (extras.length === 0) return;
     setEnviandoArquivosExtras(true);
     try {
-      await addCreativeFiles(creativeId, extras);
+      // Arquivos grandes (video) sobem DIRETO pro Cloudinary (ver
+      // LIMITE_UPLOAD_DIRETO_BYTES); os demais continuam via backend, mais
+      // simples pra imagem/video pequeno.
+      const pequenos = extras.filter((f) => f.size <= LIMITE_UPLOAD_DIRETO_BYTES);
+      const grandes = extras.filter((f) => f.size > LIMITE_UPLOAD_DIRETO_BYTES);
+      if (pequenos.length) await addCreativeFiles(creativeId, pequenos);
+      if (grandes.length) {
+        const enviados = await Promise.all(grandes.map((f) => uploadDireto(f)));
+        await addCreativeFilesJaEnviados(creativeId, enviados);
+      }
       setArquivosNovos([]);
     } catch (err) {
       console.error(err);
@@ -386,13 +406,22 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   // Monta o FormData comum a criacao/edicao/rascunho -- evita repetir os mesmos
   // ~20 fd.append em tres lugares. isRascunho pula a normalizacao de URL (nao
   // faz sentido "corrigir" um campo que o usuario pode nem ter preenchido ainda).
-  function montarFormData({ incluirMidiaExistente }) {
+  // async: arquivo capa grande (video) precisa subir DIRETO pro Cloudinary
+  // antes de montar o FormData (ver LIMITE_UPLOAD_DIRETO_BYTES).
+  async function montarFormData({ incluirMidiaExistente }) {
     const fd = new FormData();
     // So em criacao o arquivo escolhido como capa vira o arquivo principal
     // (creatives.cloudinary_*) -- em edicao a capa ja salva nao muda por
     // aqui, os arquivosNovos entram todos como extras (ver enviarArquivosExtras).
     const arquivoCapa = !isEdit ? arquivosNovos[capaIndex] : null;
-    if (arquivoCapa) fd.append("file", arquivoCapa);
+    if (arquivoCapa && arquivoCapa.size > LIMITE_UPLOAD_DIRETO_BYTES) {
+      const enviado = await uploadDireto(arquivoCapa);
+      fd.append("cloudinaryUrl", enviado.cloudinaryUrl);
+      fd.append("cloudinaryPublicId", enviado.cloudinaryPublicId);
+      fd.append("tipoMidia", enviado.tipoMidia);
+    } else if (arquivoCapa) {
+      fd.append("file", arquivoCapa);
+    }
     if (!arquivoCapa && incluirMidiaExistente && creative?.cloudinary_url) {
       fd.append("cloudinaryUrl", creative.cloudinary_url);
       fd.append("cloudinaryPublicId", creative.cloudinary_public_id);
@@ -463,11 +492,11 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
     try {
       let salvo;
       if (isEdit) {
-        const fd = montarFormData({ incluirMidiaExistente: false });
+        const fd = await montarFormData({ incluirMidiaExistente: false });
         if (creative.status === "Rascunho") fd.append("publicarRascunho", "true");
         salvo = await updateMatrixCreative(creative.id, fd);
       } else {
-        const fd = montarFormData({ incluirMidiaExistente: true });
+        const fd = await montarFormData({ incluirMidiaExistente: true });
         salvo = await createMatrixCreative(fd);
       }
       await enviarArquivosExtras(salvo.id);
@@ -483,7 +512,7 @@ export default function CreativeFormModal({ creative, onClose, onSaved }) {
   async function handleSalvarRascunho() {
     setSaving(true);
     try {
-      const fd = montarFormData({ incluirMidiaExistente: true });
+      const fd = await montarFormData({ incluirMidiaExistente: true });
       if (isEdit) {
         await updateMatrixCreative(creative.id, fd);
       } else {

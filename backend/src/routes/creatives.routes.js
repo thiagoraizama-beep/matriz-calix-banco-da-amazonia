@@ -24,13 +24,14 @@ import {
 } from "../services/commentsService.js";
 import { listarOperacoesBulk, desfazerOperacaoBulk, desfazerItemBulk } from "../services/bulkEditService.js";
 import { gerarExportacaoMatriz, listPlataformasDaCampanha } from "../services/creativesExportService.js";
-import { listFilesByCreative, addCreativeFiles, removeCreativeFile, gerarZipDoCreative, definirCapa, reordenarCreativeFiles } from "../services/creativeFilesService.js";
+import { listFilesByCreative, addCreativeFiles, addCreativeFilesJaEnviados, removeCreativeFile, gerarZipDoCreative, definirCapa, reordenarCreativeFiles } from "../services/creativeFilesService.js";
 import {
   getCampanhaSheetSyncConfig, upsertCampanhaSheetSync, getSheetSyncSelecao,
   setSheetSyncSelecao, sincronizarCampanha,
 } from "../services/creativesSheetSyncService.js";
 import { getExportConfig, setExportConfig } from "../services/creativesColumnsConfigService.js";
 import { COLUNAS_BASE, COLUNAS_GOOGLE } from "../services/creativesExportService.js";
+import { gerarAssinaturaUpload } from "../utils/cloudinaryUpload.js";
 
 const router = Router();
 const upload = multer({
@@ -57,6 +58,14 @@ function handleUploadErrors(req, res, next) {
 // Retorna lista de status válidos para o papel do usuário logado
 router.get("/statuses", (req, res) => {
   res.json(req.user.papel === "veiculo" ? STATUSES_VEICULO : STATUSES);
+});
+
+// Assinatura pra upload DIRETO do navegador pro Cloudinary (ver
+// gerarAssinaturaUpload) -- usada pra arquivos grandes (video), que o
+// upload via backend (POST multipart) nao suporta na Vercel por causa do
+// limite de tamanho de corpo de requisicao (erro 413 acima de ~4.5MB).
+router.get("/upload-signature", requireRole("agencia"), (req, res) => {
+  res.json(gerarAssinaturaUpload(process.env.CLOUDINARY_CREATIVES_FOLDER));
 });
 
 // Sem campanhaId: lista legada (usada so em locais que ainda nao migraram para a
@@ -352,6 +361,21 @@ router.post(
     }
   }
 );
+
+// Registra arquivos ja enviados direto do navegador pro Cloudinary (ver
+// uploadDireto no client.js) -- so grava a URL, sem reenviar o arquivo.
+// Usado pra videos grandes, que dariam erro 413 se subissem via multipart.
+router.post("/:id/files/ja-enviados", requireRole("agencia"), async (req, res, next) => {
+  try {
+    const { arquivos } = req.body;
+    if (!Array.isArray(arquivos) || !arquivos.length) {
+      return res.status(400).json({ error: "Envie ao menos um arquivo" });
+    }
+    res.status(201).json(await addCreativeFilesJaEnviados(req.params.id, arquivos));
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.delete("/:id/files/:fileId", requireRole("agencia"), async (req, res, next) => {
   try {
