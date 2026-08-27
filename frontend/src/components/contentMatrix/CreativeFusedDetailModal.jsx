@@ -28,6 +28,34 @@ function CloseIcon() {
   );
 }
 
+// Campo de texto longo (link) com botao de copiar -- mesmo padrao visual
+// reaproveitado pra URL de destino e Link da publicacao.
+function LinkComCopiar({ valor, campo, copiedField, onCopy }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <code
+        title={valor}
+        style={{
+          flex: 1, minWidth: 0, fontFamily: "inherit", fontSize: 12.5, padding: "9px 12px", borderRadius: 8,
+          background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)",
+          overflowX: "auto", whiteSpace: "nowrap",
+        }}
+      >
+        {valor}
+      </code>
+      <button
+        type="button"
+        onClick={() => onCopy(campo, valor)}
+        title="Copiar link"
+        style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+      >
+        <CopyIcon />
+        {copiedField === campo ? "Copiado!" : "Copiar"}
+      </button>
+    </div>
+  );
+}
+
 function formatPeriodo(inicio, fim) {
   if (!inicio && !fim) return null;
   const fmt = (iso) => { const [y, m, d] = iso.slice(0, 10).split("-"); return `${d}/${m}/${y}`; };
@@ -104,7 +132,7 @@ export default function CreativeFusedDetailModal({
   onNavegar, listaNavegacao,
 }) {
   const periodo = formatPeriodo(creative.periodo_inicio, creative.periodo_fim);
-  const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
   const [aba, setAba] = useState(abaInicial);
 
   // Navegacao entre criativos (setas/teclado) sem fechar o modal -- so ativa
@@ -144,11 +172,11 @@ export default function CreativeFusedDetailModal({
       .catch(() => setPerformance(null));
   }, [aba, campanhaId, creative.id, temPermissaoAnalise, temAdName, performance]);
 
-  function handleCopyUrl() {
-    if (!creative.url_destino) return;
-    navigator.clipboard.writeText(creative.url_destino);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  function handleCopy(campo, valor) {
+    if (!valor) return;
+    navigator.clipboard.writeText(valor);
+    setCopiedField(campo);
+    setTimeout(() => setCopiedField(null), 1500);
   }
 
   return (
@@ -320,27 +348,19 @@ export default function CreativeFusedDetailModal({
 
               {creative.url_destino && (
                 <Section title="URL de destino">
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <code
-                      title={creative.url_destino}
-                      style={{
-                        flex: 1, minWidth: 0, fontFamily: "inherit", fontSize: 12.5, padding: "9px 12px", borderRadius: 8,
-                        background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-primary)",
-                        overflowX: "auto", whiteSpace: "nowrap",
-                      }}
-                    >
-                      {creative.url_destino}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={handleCopyUrl}
-                      title="Copiar link"
-                      style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--text-primary)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
-                    >
-                      <CopyIcon />
-                      {copied ? "Copiado!" : "Copiar"}
-                    </button>
-                  </div>
+                  <LinkComCopiar valor={creative.url_destino} campo="urlDestino" copiedField={copiedField} onCopy={handleCopy} />
+                </Section>
+              )}
+
+              {creative.impulsionado && (
+                <Section title="Link da publicação">
+                  {creative.link_postagem ? (
+                    <LinkComCopiar valor={creative.link_postagem} campo="linkPostagem" copiedField={copiedField} onCopy={handleCopy} />
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                      Ainda não preenchido. Cole o link na coluna "Link da publicação" da planilha do Sheets, se ela estiver vinculada.
+                    </p>
+                  )}
                 </Section>
               )}
 

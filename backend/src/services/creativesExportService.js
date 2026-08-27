@@ -233,7 +233,7 @@ async function gerarExcelMatriz(creatives, campanha, plataformas, baseUrl, campa
         plataforma: c.plataforma || "",
         dataInclusao: formatarData(c.criado_em),
         titulo: c.titulo || c.nome || "",
-        campaignName: c.campanha || "",
+        campaignName: c.campaign_name || "",
         adGroup: c.conjunto || "",
         adName: c.ad_name || "",
         formato: Array.isArray(c.formato) ? c.formato.join(", ") : "",
