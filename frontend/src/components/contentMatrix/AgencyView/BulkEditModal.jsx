@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  getCampanhas, getRegisteredVehicles, getPlataformas, updateMatrixCreative,
+  getCampanhas, getRegisteredVehicles, getPlataformas, updateMatrixCreative, updateMatrixCreativeStatus,
 } from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
 import MultiSearchSelect from "../../layout/MultiSearchSelect.jsx";
@@ -375,21 +375,40 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
       // da demora antes (N campos x M criativos = N*M requisicoes
       // sequenciais). As chamadas entre criativos DIFERENTES rodam em
       // paralelo (Promise.all).
-      const camposTocados = Object.keys(tocado);
+      // "status" e tratado a parte -- updateCreative (rota PUT /:id, usada
+      // pelos demais campos) nao aceita status como parametro, quem muda
+      // status e updateStatus (rota PATCH /:id/status), que tambem valida
+      // a transicao contra o papel do usuario e grava historico. Se so
+      // status foi tocado, nem chama o PUT.
+      const camposTocados = Object.keys(tocado).filter((k) => k !== "status");
       await Promise.all(
         creatives.map(async (c) => {
+          let ok = true;
+
+          if (tocado.status?.[c.id]) {
+            try {
+              await updateMatrixCreativeStatus(c.id, valores.status[c.id]);
+            } catch {
+              falharam.push({ id: c.id, motivo: "Falha ao salvar" });
+              ok = false;
+            }
+          }
+
           const camposEValores = {};
           for (const campoKey of camposTocados) {
             if (!tocado[campoKey]?.[c.id]) continue;
             camposEValores[campoKey] = valores[campoKey]?.[c.id] ?? "";
           }
-          if (Object.keys(camposEValores).length === 0) return;
-          try {
-            await updateMatrixCreative(c.id, montarFormDataDoCreative(camposEValores));
-            atualizados.add(c.id);
-          } catch {
-            falharam.push({ id: c.id, motivo: "Falha ao salvar" });
+          if (Object.keys(camposEValores).length > 0) {
+            try {
+              await updateMatrixCreative(c.id, montarFormDataDoCreative(camposEValores));
+            } catch {
+              if (ok) falharam.push({ id: c.id, motivo: "Falha ao salvar" });
+              ok = false;
+            }
           }
+
+          if (ok) atualizados.add(c.id);
         })
       );
 
