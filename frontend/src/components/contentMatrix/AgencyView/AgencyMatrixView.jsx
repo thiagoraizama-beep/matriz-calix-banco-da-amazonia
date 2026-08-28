@@ -590,14 +590,11 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   );
 
   const verbaTotalBadge = creatives && verbaPlanejada > 0 && (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "8px 12px", borderRadius: 10, background: "var(--card-bg)", border: "1px solid var(--border)" }}>
-      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12, padding: "4px 10px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content" }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
         {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-        <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          verba
-        </span>
       </span>
-      <div style={{ flex: 1, minWidth: 60, height: 5, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
+      <div style={{ width: 40, height: 4, borderRadius: 999, background: "var(--border)", overflow: "hidden", flexShrink: 0 }}>
         <div
           style={{
             height: "100%",
@@ -607,8 +604,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           }}
         />
       </div>
-      <span style={{ fontSize: 11.5, fontWeight: 600, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-        {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} gasto
+      <span style={{ fontSize: 10.5, fontWeight: 600, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+        {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
       </span>
     </div>
   );
