@@ -590,16 +590,16 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   );
 
   const verbaTotalBadge = creatives && verbaPlanejada > 0 && (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, minHeight: 36, padding: "0 16px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content", flexShrink: 0, boxSizing: "border-box" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 24, minHeight: 44, padding: "0 26px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content", flexShrink: 0, boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
           {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
         </span>
         <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Verba destinada
+          Verba total
         </span>
       </div>
-      <div style={{ width: 70, height: 5, borderRadius: 999, background: "var(--border)", overflow: "hidden", flexShrink: 0 }}>
+      <div style={{ width: 260, height: 8, borderRadius: 999, background: "var(--border)", overflow: "hidden", flexShrink: 0 }}>
         <div
           style={{
             height: "100%",
@@ -614,7 +614,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
         </span>
         <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Verba gasta
+          Gasto
         </span>
       </div>
     </div>
