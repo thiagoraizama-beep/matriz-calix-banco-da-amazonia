@@ -590,11 +590,16 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   );
 
   const verbaTotalBadge = creatives && verbaPlanejada > 0 && (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12, padding: "4px 10px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content" }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-        {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-      </span>
-      <div style={{ width: 40, height: 4, borderRadius: 999, background: "var(--border)", overflow: "hidden", flexShrink: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "10px 20px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content", flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.3 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Verba destinada
+        </span>
+      </div>
+      <div style={{ width: 70, height: 5, borderRadius: 999, background: "var(--border)", overflow: "hidden", flexShrink: 0 }}>
         <div
           style={{
             height: "100%",
@@ -604,14 +609,20 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           }}
         />
       </div>
-      <span style={{ fontSize: 10.5, fontWeight: 600, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-        {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-      </span>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.3 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Verba gasta
+        </span>
+      </div>
     </div>
   );
 
   const statusGrid = creatives && (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 20 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       {Object.entries(statusCounts).map(([status, count]) => {
         const cor = STATUS_COLORS[status] || { color: "var(--text-secondary)", bg: "var(--border)" };
         const ativo = filters.status.includes(status);
@@ -640,6 +651,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           </button>
         );
       })}
+      </div>
+      {verbaTotalBadge}
     </div>
   );
 
@@ -720,7 +733,6 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         )}
         {syncFeedback}
         {urgenciaBanner}
-        {verbaTotalBadge}
         {statusGrid}
         {visualizacao === "kanban" ? kanbanBoard : grid}
         {modals}
@@ -741,7 +753,6 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       {syncResult && <div style={{ textAlign: "right" }}>{syncFeedback}</div>}
       {urgenciaBanner}
       {selecaoBarra}
-      {verbaTotalBadge}
       {statusGrid}
       {visualizacao === "kanban" ? kanbanBoard : grid}
       {modals}
