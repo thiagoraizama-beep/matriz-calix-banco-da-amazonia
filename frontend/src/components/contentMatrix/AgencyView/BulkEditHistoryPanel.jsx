@@ -13,7 +13,7 @@ const LABEL_CAMPO = {
   conjunto: "Ad Group", formato: "Formato", posicionamento: "Posicionamento",
   periodoInicio: "Início do período", periodoFim: "Fim do período", urlDestino: "URL de destino",
   impulsionado: "Tipo de publicação", segmentacao: "Segmentação", titulo: "Título",
-  descricao: "Descrição", observacoes: "Observações", ehPerformance: "Performance",
+  descricao: "Descrição", observacoes: "Observações", ehPerformance: "Verba",
   orcamentoProjetado: "Orçamento projetado",
 };
 

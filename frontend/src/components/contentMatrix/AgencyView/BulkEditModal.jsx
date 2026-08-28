@@ -171,7 +171,7 @@ const CAMPOS = [
   // Performance e Orcamento projetado ficam no mesmo painel (o orcamento so
   // faz sentido quando eh_performance = true) -- valor achatado combinado
   // como "Sim|123.45" ou "Não".
-  { key: "ehPerformance", label: "Performance", getValor: (c) => (c.eh_performance ? `Sim|${c.orcamento_projetado || ""}` : "Não") },
+  { key: "ehPerformance", label: "Verba", getValor: (c) => (c.eh_performance ? `Sim|${c.orcamento_projetado || ""}` : "Não") },
   { key: "nome", label: "Nome", getValor: (c) => c.nome || "", confirmarEmMassa: true },
   { key: "adName", label: "Ad Name", getValor: (c) => c.ad_name || "", confirmarEmMassa: true },
   { key: "posicionamento", label: "Posicionamento", getValor: (c) => c.posicionamento || "" },
