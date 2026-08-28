@@ -106,19 +106,40 @@ function Field({ label, value }) {
   );
 }
 
-// Faixa de destaque no topo da aba Implementacao -- os 3 dados que mais
-// importam de relance (Plataforma, Periodo, Verba), pra nao precisar caçar
-// eles no meio da tabela de baixo.
+// Faixa de destaque "flutuante" no topo da aba Implementacao -- os 3 dados
+// que mais importam de relance (Plataforma, Periodo, Verba), com fundo
+// neutro recuado do corpo em vez de linha divisoria entre celulas.
 function SummaryStrip({ itens }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: `repeat(${itens.length}, 1fr)`, gap: 1, background: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${itens.length}, 1fr)`, gap: 8 }}>
       {itens.map((item) => (
-        <div key={item.label} style={{ background: "var(--card-bg)", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 3 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{item.label}</span>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: item.accent ? "var(--accent)" : "var(--text-primary)" }}>
+        <div key={item.label} style={{ background: "var(--bg)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 2 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.label}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: item.accent ? "var(--accent)" : "var(--text-primary)" }}>
             {item.value || <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>—</span>}
           </span>
         </div>
+      ))}
+    </div>
+  );
+}
+
+// Chips soltos -- usado pra grupos curtos (Campanha e veiculo), mais rapido
+// de escanear que uma tabela quando os valores sao curtos.
+function Chips({ itens }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {itens.filter((item) => item.value).map((item) => (
+        <span
+          key={item.label}
+          style={{
+            fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 999,
+            background: "var(--bg)", color: "var(--text-primary)", border: "1px solid var(--border)",
+          }}
+        >
+          <span style={{ color: "var(--text-secondary)", fontWeight: 500, marginRight: 4 }}>{item.label}</span>
+          {item.value}
+        </span>
       ))}
     </div>
   );
@@ -340,19 +361,27 @@ export default function CreativeFusedDetailModal({
               />
 
               <Section title="Campanha e veículo">
-                <TableRows
-                  linhas={[
-                    { label: "Campanha", value: creative.campanha },
-                    { label: "Veículo", value: creative.veiculo },
-                    { label: "Tipo de compra", value: creative.tipos_compra?.length ? creative.tipos_compra.join(", ") : null },
-                    ...(creative.tipos_compra?.includes("CPL")
-                      ? [{ label: "Formulário de captura", value: creative.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa" }]
-                      : []),
-                    { label: "Publicação", value: creative.impulsionado === false ? "Dark Post" : "Impulsionado" },
-                    { label: "Título", value: creative.titulo },
-                    { label: "Segmentação", value: creative.segmentacao },
-                  ]}
-                />
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <Chips
+                    itens={[
+                      { label: "Campanha", value: creative.campanha },
+                      { label: "Veículo", value: creative.veiculo },
+                      { label: "Compra", value: creative.tipos_compra?.length ? creative.tipos_compra.join(", ") : null },
+                      ...(creative.tipos_compra?.includes("CPL")
+                        ? [{ label: "Formulário", value: creative.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa" }]
+                        : []),
+                      { label: "Publicação", value: creative.impulsionado === false ? "Dark Post" : "Impulsionado" },
+                    ]}
+                  />
+                  {(creative.titulo || creative.segmentacao) && (
+                    <TableRows
+                      linhas={[
+                        { label: "Título", value: creative.titulo },
+                        { label: "Segmentação", value: creative.segmentacao },
+                      ]}
+                    />
+                  )}
+                </div>
               </Section>
 
               <Section title="Identificação e tracking">
