@@ -113,6 +113,11 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const [comparando, setComparando] = useState(false);
   const [comparativoAberto, setComparativoAberto] = useState(false);
   const [selecionados, setSelecionados] = useState([]);
+  // Guarda os IDs dos criativos urgentes que estavam no banner quando o
+  // usuario o fechou -- some ate que a lista de urgentes mude (um criativo
+  // novo entrar na janela de "hoje ou amanha"), nao so por um dia fixo, ja
+  // que essas notificacoes tambem aparecem no sino (ver NotificationBell.jsx).
+  const [bannerUrgenciaFechadoIds, setBannerUrgenciaFechadoIds] = useState(null);
   const [editandoEmMassa, setEditandoEmMassa] = useState(false);
   const [bulkModalAberto, setBulkModalAberto] = useState(false);
   const [bulkHistoryAberto, setBulkHistoryAberto] = useState(false);
@@ -462,7 +467,10 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const criativosUrgentes = filtered.filter((c) => isUrgente(c.periodo_inicio));
   const filteredOrdenado = [...filtered].sort((a, b) => isUrgente(b.periodo_inicio) - isUrgente(a.periodo_inicio));
 
-  const urgenciaBanner = criativosUrgentes.length > 0 && (
+  const idsUrgentesAtual = criativosUrgentes.map((c) => c.id).sort().join(",");
+  const bannerFechado = bannerUrgenciaFechadoIds === idsUrgentesAtual;
+
+  const urgenciaBanner = criativosUrgentes.length > 0 && !bannerFechado && (
     <div
       style={{
         display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", marginBottom: 16,
@@ -470,9 +478,18 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       }}
     >
       <WarningIcon />
-      <strong style={{ fontSize: 13.5 }}>
+      <strong style={{ fontSize: 13.5, flex: 1 }}>
         {criativosUrgentes.length} criativo{criativosUrgentes.length === 1 ? "" : "s"} precisa{criativosUrgentes.length === 1 ? "" : "m"} ser implementado{criativosUrgentes.length === 1 ? "" : "s"} hoje ou amanhã.
       </strong>
+      <button
+        type="button"
+        onClick={() => setBannerUrgenciaFechadoIds(idsUrgentesAtual)}
+        title="Dispensar (continua no sino de notificações)"
+        aria-label="Fechar aviso"
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: "none", background: "transparent", color: "#c77f1a", cursor: "pointer", flexShrink: 0 }}
+      >
+        <XIcon />
+      </button>
     </div>
   );
 

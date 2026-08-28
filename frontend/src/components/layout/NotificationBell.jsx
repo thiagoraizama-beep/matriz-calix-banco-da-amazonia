@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCreativesComErro, getMentionNotifications, markMentionRead } from "../../api/client.js";
+import { getCreativesComErro, getCreativesUrgentes, getMentionNotifications, markMentionRead } from "../../api/client.js";
+import { labelUrgencia } from "../../utils/urgencia.js";
 
 // 20s (era 60s) -- ainda so polling, mas a demora de ate 1 minuto pra um
 // badge novo aparecer incomodava. Some no ato ao reabrir a aba/focar a
@@ -36,6 +37,15 @@ function MentionIcon() {
   );
 }
 
+function UrgenteIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c77f1a" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  );
+}
+
 function formatDataHora(iso) {
   const d = new Date(iso);
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -50,6 +60,7 @@ function formatDataHora(iso) {
 // sem infraestrutura nova).
 export default function NotificationBell({ variant = "onImage" }) {
   const [criativosComErro, setCriativosComErro] = useState([]);
+  const [criativosUrgentes, setCriativosUrgentes] = useState([]);
   const [mencoes, setMencoes] = useState([]);
   const [hovering, setHovering] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -63,6 +74,7 @@ export default function NotificationBell({ variant = "onImage" }) {
 
   function carregar() {
     getCreativesComErro().then(setCriativosComErro).catch(() => {});
+    getCreativesUrgentes().then(setCriativosUrgentes).catch(() => {});
     getMentionNotifications().then(setMencoes).catch(() => {});
   }
 
@@ -85,18 +97,20 @@ export default function NotificationBell({ variant = "onImage" }) {
   }, [open]);
 
   const mencoesNaoLidas = mencoes.filter((m) => !m.lido);
-  const count = criativosComErro.length + mencoesNaoLidas.length;
+  const count = criativosComErro.length + criativosUrgentes.length + mencoesNaoLidas.length;
 
-  // Mescla as duas fontes num unico feed cronologico -- criativos com erro
-  // nao tem timestamp proprio aqui (a lista e so "estado atual"), entao
-  // aparecem sempre primeiro; mencoes ordenadas por data mais recente.
+  // Mescla as tres fontes num unico feed -- criativos com erro e urgentes nao
+  // tem timestamp de notificacao proprio (sao "estado atual"), entao aparecem
+  // primeiro (erro antes de urgente, por ser mais critico); mencoes por
+  // ultimo, ordenadas por data mais recente.
   const feed = [
     ...criativosComErro.map((c) => ({ tipo: "erro", key: `erro-${c.id}`, data: c })),
+    ...criativosUrgentes.map((c) => ({ tipo: "urgente", key: `urgente-${c.id}`, data: c })),
     ...mencoes.map((m) => ({ tipo: "mencao", key: `mencao-${m.mention_id}`, data: m })),
   ].sort((a, b) => {
-    if (a.tipo === "erro" && b.tipo !== "erro") return -1;
-    if (b.tipo === "erro" && a.tipo !== "erro") return 1;
-    if (a.tipo === "mencao" && b.tipo === "mencao") return new Date(b.data.criado_em) - new Date(a.data.criado_em);
+    const ordem = { erro: 0, urgente: 1, mencao: 2 };
+    if (ordem[a.tipo] !== ordem[b.tipo]) return ordem[a.tipo] - ordem[b.tipo];
+    if (a.tipo === "mencao") return new Date(b.data.criado_em) - new Date(a.data.criado_em);
     return 0;
   });
 
@@ -106,6 +120,13 @@ export default function NotificationBell({ variant = "onImage" }) {
     setMencoes((prev) => prev.map((m) => (m.mention_id === mencao.mention_id ? { ...m, lido: true } : m)));
     if (mencao.campanha_id) {
       navigate(`/matriz-de-conteudo/${mencao.campanha_id}?criativo=${mencao.creative_id}`);
+    }
+  }
+
+  function handleClickUrgente(creative) {
+    setPinned(false);
+    if (creative.campanha_id_ref) {
+      navigate(`/matriz-de-conteudo/${creative.campanha_id_ref}?criativo=${creative.id}`);
     }
   }
 
@@ -195,6 +216,18 @@ export default function NotificationBell({ variant = "onImage" }) {
                     <p style={{ margin: 0, fontSize: 12, color: "var(--text-primary)" }}>
                       O criativo <strong>{item.data.nome}</strong> ({item.data.campanha_nome_ref} · {item.data.veiculo}) está marcado como{" "}
                       <strong>Com erro</strong>.
+                    </p>
+                  </div>
+                ) : item.tipo === "urgente" ? (
+                  <div
+                    key={item.key}
+                    onClick={() => handleClickUrgente(item.data)}
+                    style={{ display: "flex", gap: 8, border: "1px solid var(--border)", borderRadius: 8, padding: 10, cursor: item.data.campanha_id_ref ? "pointer" : "default" }}
+                  >
+                    <UrgenteIcon />
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--text-primary)" }}>
+                      O criativo <strong>{item.data.nome}</strong> ({item.data.campanha_nome_ref} · {item.data.veiculo}) precisa ser implementado{" "}
+                      <strong>{labelUrgencia(item.data.periodo_inicio)?.toLowerCase()}</strong>.
                     </p>
                   </div>
                 ) : (

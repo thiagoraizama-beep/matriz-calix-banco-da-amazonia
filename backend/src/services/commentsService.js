@@ -154,7 +154,8 @@ export async function criarComentario({ creativeId, autorId, texto, mencionadosI
 // via campanha_veiculos, mesmo padrao de resolveCampanhaIdDoCreative em
 // actionLogService.js) para o frontend poder navegar direto pra campanha
 // certa ao clicar na notificacao. Trecho do comentario limitado a 80
-// caracteres para a previa no sino.
+// caracteres para a previa no sino. So traz mencoes dos ultimos 14 dias --
+// o sino nao e um historico permanente, notificacao antiga perde sentido.
 export async function listNotificacoesMencao(userId) {
   const { rows } = await query(
     `SELECT
@@ -168,7 +169,7 @@ export async function listNotificacoesMencao(userId) {
      JOIN creatives cr ON cr.id = c.creative_id
      JOIN users au ON au.id = c.autor_id
      LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
-     WHERE m.usuario_mencionado_id = $1
+     WHERE m.usuario_mencionado_id = $1 AND m.criado_em >= now() - interval '14 days'
      ORDER BY m.criado_em DESC
      LIMIT 30`,
     [userId]

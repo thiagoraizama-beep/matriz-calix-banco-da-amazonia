@@ -78,6 +78,10 @@ export function getCreativesComErro() {
   return api.get("/creatives/alertas").then((r) => r.data);
 }
 
+export function getCreativesUrgentes() {
+  return api.get("/creatives/urgentes").then((r) => r.data);
+}
+
 export function getProgramasList() {
   return api.get("/programacoes/programas").then((r) => r.data);
 }

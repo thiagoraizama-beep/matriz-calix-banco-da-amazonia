@@ -6,6 +6,7 @@ import {
   listCreativesByCampanha,
   listCreativesAImplementar,
   listCreativesComErro,
+  listCreativesUrgentes,
   listMeusRascunhos,
   getCreativeById,
   createCreative,
@@ -100,6 +101,18 @@ router.get("/a-implementar", requireRole("agencia", "veiculo"), async (req, res,
 router.get("/alertas", requireRole("agencia", "veiculo"), async (req, res, next) => {
   try {
     res.json(await listCreativesComErro(req.user));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Alertas para o sino de notificacoes: criativos "urgentes" (periodo_inicio
+// hoje ou amanha) de TODAS as campanhas do usuario -- mesma logica do banner
+// da Matriz (utils/urgencia.js no frontend), so que aqui olha o usuario
+// inteiro, nao so a campanha aberta.
+router.get("/urgentes", requireRole("agencia", "veiculo"), async (req, res, next) => {
+  try {
+    res.json(await listCreativesUrgentes(req.user));
   } catch (err) {
     next(err);
   }

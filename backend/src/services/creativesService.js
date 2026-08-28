@@ -212,6 +212,57 @@ export async function listCreativesComErro(user) {
   return rows;
 }
 
+// Criativos "urgentes" (periodo_inicio = hoje ou amanha) do usuario logado,
+// pro sino de notificacoes -- mesmo escopo de permissao/visibilidade de
+// listCreativesComErro, so troca o filtro de status por periodo_inicio.
+// Nao precisa de corte de dias (janela de 14 dias das mencoes): um criativo
+// deixa de ser urgente sozinho assim que o periodo passa, entao a query ja
+// se "auto-expira" pela propria condicao de data.
+export async function listCreativesUrgentes(user) {
+  const veiculos = veiculosVisiveis(user);
+  const selectComCampanha = `
+    SELECT cr.*,
+           COALESCE(c.id, (SELECT id FROM campanhas WHERE nome = cr.campanha)) AS campanha_id_ref,
+           COALESCE(c.nome, cr.campanha) AS campanha_nome_ref
+    FROM creatives cr
+    LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
+    LEFT JOIN campanhas c ON c.id = cv.campanha_id
+  `;
+  const filtroUrgente = `cr.periodo_inicio::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 1 AND cr.excluido_em IS NULL AND cr.status != 'Rascunho'`;
+
+  if (veiculos) {
+    const vinculoIds = vinculoIdsComAcessoMatriz(user);
+    const campanhas = scopeCampanhaFilter(user, null);
+    if (campanhas) {
+      const { rows } = await query(
+        `${selectComCampanha}
+         WHERE ${filtroUrgente}
+           AND ((cr.campanha_veiculo_id = ANY($1))
+                OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($2) AND cr.campanha = ANY($3)))
+         ORDER BY cr.periodo_inicio ASC`,
+        [vinculoIds, veiculos, campanhas]
+      );
+      return rows;
+    }
+    const { rows } = await query(
+      `${selectComCampanha}
+       WHERE ${filtroUrgente}
+         AND ((cr.campanha_veiculo_id = ANY($1))
+              OR (cr.campanha_veiculo_id IS NULL AND cr.veiculo = ANY($2)))
+       ORDER BY cr.periodo_inicio ASC`,
+      [vinculoIds, veiculos]
+    );
+    return rows;
+  }
+
+  const { rows } = await query(
+    `${selectComCampanha}
+     WHERE ${filtroUrgente}
+     ORDER BY cr.periodo_inicio ASC`
+  );
+  return rows;
+}
+
 // Rascunhos do usuario logado -- escopado por autoria (criado_por), nao por
 // permissao de veiculo/campanha como o resto da Matriz, ja que um rascunho e
 // privado ao autor por definicao (pode nem ter campanha/veiculo preenchidos
