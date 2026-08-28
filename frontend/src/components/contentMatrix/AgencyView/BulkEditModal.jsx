@@ -304,10 +304,12 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
             </select>
           </CampoEmMassa>
 
-          {/* Formulario nativo -- so aparece quando "Tipo de compra" esta marcado
-              pra aplicar E o valor escolhido e CPL (mesma regra do
-              CreativeFormModal.jsx individual, onde so faz sentido pra CPL). */}
-          {aplicar.tipoCompra && tipoCompra === "CPL" && (
+          {/* Formulario nativo -- so aparece quando o valor escolhido em "Tipo de
+              compra" e CPL (mesma regra do CreativeFormModal.jsx individual, onde
+              so faz sentido pra CPL). Nao exige a checkbox "Tipo de compra" marcada
+              -- o usuario pode so mexer no formulario de captura de criativos que
+              ja sao CPL, sem precisar reaplicar o tipo de compra em si. */}
+          {tipoCompra === "CPL" && (
             <div style={{ gridColumn: "1 / -1" }}>
               <CampoEmMassa label="Formulário de captura" aplicar={!!aplicar.formularioNativo} onToggleAplicar={() => toggle("formularioNativo")}>
                 <div style={{ display: "flex", gap: 8, marginBottom: formularioNativo ? 10 : 0 }}>
