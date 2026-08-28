@@ -590,9 +590,9 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   );
 
   const verbaTotalBadge = creatives && verbaPlanejada > 0 && (
-    <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "10px 20px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content", flexShrink: 0 }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.3 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 14px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content", flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
           {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
         </span>
         <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
@@ -609,8 +609,8 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           }}
         />
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.3 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
           {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
         </span>
         <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
