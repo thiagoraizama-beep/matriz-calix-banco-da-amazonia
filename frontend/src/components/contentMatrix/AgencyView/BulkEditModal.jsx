@@ -104,6 +104,64 @@ function StatusSelect({ value, onChange, options }) {
   );
 }
 
+// Dropdown de texto simples com o mesmo padrao visual do StatusSelect acima,
+// em vez do <select> nativo do navegador (visual datado, inconsistente com
+// o resto do app).
+function SimpleSelect({ value, onChange, options, placeholder = "Selecione..." }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card-bg)",
+          cursor: "pointer", boxSizing: "border-box",
+        }}
+      >
+        <span style={{ fontSize: 13, color: value ? "var(--text-primary)" : "var(--text-secondary)" }}>{value || placeholder}</span>
+        <span style={{ fontSize: 10, color: "var(--text-secondary)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}>▾</span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 20,
+            background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(20,33,61,0.15)", padding: 6, maxHeight: 260, overflowY: "auto",
+          }}
+        >
+          {options.map((opt) => (
+            <div
+              key={opt}
+              onClick={() => { onChange(opt); setOpen(false); }}
+              style={{
+                padding: "8px 10px", borderRadius: 7, cursor: "pointer", fontSize: 13,
+                color: "var(--text-primary)",
+                background: opt === value ? "var(--accent-soft)" : "transparent",
+              }}
+              onMouseEnter={(e) => { if (opt !== value) e.currentTarget.style.background = "var(--bg)"; }}
+              onMouseLeave={(e) => { if (opt !== value) e.currentTarget.style.background = "transparent"; }}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BulkEditModal({ ids, onClose, onSaved }) {
   const [aplicar, setAplicar] = useState({});
   const [status, setStatus] = useState("");
@@ -296,12 +354,7 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
           </CampoEmMassa>
 
           <CampoEmMassa label="Tipo de compra" aplicar={!!aplicar.tipoCompra} onToggleAplicar={() => toggle("tipoCompra")}>
-            <select value={tipoCompra} onChange={(e) => setTipoCompra(e.target.value)} style={inputStyle}>
-              <option value="">Selecione...</option>
-              {TIPOS_COMPRA_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+            <SimpleSelect value={tipoCompra} onChange={setTipoCompra} options={TIPOS_COMPRA_OPTIONS} />
           </CampoEmMassa>
 
           {/* Formulario nativo -- so aparece quando o valor escolhido em "Tipo de
@@ -312,7 +365,7 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
           {tipoCompra === "CPL" && (
             <div style={{ gridColumn: "1 / -1" }}>
               <CampoEmMassa label="Formulário de captura" aplicar={!!aplicar.formularioNativo} onToggleAplicar={() => toggle("formularioNativo")}>
-                <div style={{ display: "flex", gap: 8, marginBottom: formularioNativo ? 10 : 0 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: formularioNativo ? 12 : 0 }}>
                   {[{ label: "Site/LP externa", val: false }, { label: "Nativo da plataforma", val: true }].map(({ label, val }) => {
                     const sel = formularioNativo === val;
                     return (
@@ -323,7 +376,7 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
                         style={{
                           flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
                           background: sel ? "var(--accent-soft)" : "transparent", color: sel ? "var(--accent)" : "var(--text-secondary)",
-                          fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
+                          fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer", transition: "background 0.15s ease, border-color 0.15s ease",
                         }}
                       >
                         {label}
