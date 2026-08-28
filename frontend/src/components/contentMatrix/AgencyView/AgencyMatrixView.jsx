@@ -136,8 +136,10 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   // sem isso o Realizado incluiria investimento de criativos sem orcamento
   // projetado, tornando a comparacao sem sentido. So faz sentido dentro de
   // uma campanha especifica (campanhaId) -- fora dela misturaria varias
-  // campanhas numa soma so.
-  const criativosPerformance = campanhaId ? (creatives || []).filter((c) => c.eh_performance && c.orcamento_projetado) : [];
+  // campanhas numa soma so. Parte de "filtered" (ja filtrado por
+  // plataforma/status/veiculo/etc), nao da lista crua -- a verba reflete
+  // exatamente o que esta sendo mostrado na tela, nao a campanha inteira.
+  const criativosPerformance = campanhaId ? (filtered || []).filter((c) => c.eh_performance && c.orcamento_projetado) : [];
   const verbaPlanejada = criativosPerformance.reduce((soma, c) => soma + Number(c.orcamento_projetado), 0);
   const verbaRealizada = criativosPerformance.reduce((soma, c) => soma + (performanceMap[c.id]?.investimento || 0), 0);
 
@@ -588,32 +590,26 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   );
 
   const verbaTotalBadge = creatives && verbaPlanejada > 0 && (
-    <div className="card" style={{ padding: "14px 18px", marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
-          {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "8px 12px", borderRadius: 10, background: "var(--card-bg)", border: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+        {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          verba
         </span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Verba total
-        </span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 5 }}>
-        <span>Gasto</span>
-        <span style={{ fontWeight: 700, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-primary)" }}>
-          {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} / {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-        </span>
-      </div>
-      <div style={{ height: 7, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
+      </span>
+      <div style={{ flex: 1, minWidth: 60, height: 5, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
         <div
           style={{
             height: "100%",
             width: `${Math.min(100, (verbaRealizada / verbaPlanejada) * 100)}%`,
             borderRadius: 999,
             background: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--success)",
-            transition: "width 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         />
       </div>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+        {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} gasto
+      </span>
     </div>
   );
 
