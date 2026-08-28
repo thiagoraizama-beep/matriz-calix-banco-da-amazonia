@@ -136,6 +136,15 @@ function SimpleSelect({ value, onChange, options, placeholder = "Selecione..." }
   );
 }
 
+// periodo_inicio/periodo_fim chegam do backend como Date (objeto) OU string
+// ISO completa, dependendo do caminho de serializacao -- normaliza pros 10
+// primeiros chars (YYYY-MM-DD), formato que SimpleDateRangeFields espera.
+function dataYMD(valor) {
+  if (!valor) return "";
+  const iso = valor instanceof Date ? valor.toISOString() : String(valor);
+  return iso.slice(0, 10);
+}
+
 // Lista de campos editaveis -- define o menu lateral e, pra cada campo, como
 // ler o valor atual de um creative bruto (raw, snake_case do banco) pra
 // detectar se os selecionados ja divergem entre si.
@@ -152,7 +161,10 @@ const CAMPOS = [
   { key: "urlDestino", label: "URL de destino", getValor: (c) => c.url_destino || "" },
   { key: "impulsionado", label: "Tipo de publicação", getValor: (c) => (c.impulsionado ? "Impulsionado" : "Dark Post") },
   { key: "titulo", label: "Título", getValor: (c) => c.titulo || "" },
-  { key: "periodo", label: "Período de veiculação", getValor: (c) => `${c.periodo_inicio || ""} - ${c.periodo_fim || ""}` },
+  // periodo_inicio/periodo_fim chegam como timestamp ISO completo (ex:
+  // "2026-08-28T03:00:00.000Z") -- so os 10 primeiros chars (YYYY-MM-DD)
+  // interessam, mesma normalizacao do formulario individual (CreativeFormModal.jsx).
+  { key: "periodo", label: "Período de veiculação", getValor: (c) => `${dataYMD(c.periodo_inicio)} - ${dataYMD(c.periodo_fim)}` },
   { key: "segmentacao", label: "Segmentação", getValor: (c) => c.segmentacao || "" },
   { key: "descricao", label: "Descrição", getValor: (c) => c.descricao || "" },
   { key: "observacoes", label: "Observações", getValor: (c) => c.observacoes || "" },
@@ -379,7 +391,7 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
                 <span style={{ flex: 1, fontSize: 12.5, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {c.titulo || c.nome || `Criativo #${c.id}`}
                 </span>
-                <div style={{ width: 240 }}>
+                <div style={{ width: campoKey === "periodo" ? 340 : 240, flexShrink: 0 }}>
                   {renderControle(campoKey, valores[campoKey]?.[c.id] ?? "", (v) => setValorLinha(campoKey, c.id, v))}
                 </div>
               </div>
