@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { bulkUpdateCreatives, undoBulkEditOperation, getCampanhas, getRegisteredVehicles, getPlataformas } from "../../../api/client.js";
+import {
+  getCampanhas, getRegisteredVehicles, getPlataformas, updateMatrixCreative,
+} from "../../../api/client.js";
 import SearchSelect from "../../layout/SearchSelect.jsx";
 import MultiSearchSelect from "../../layout/MultiSearchSelect.jsx";
 import SimpleDateRangeFields from "../../layout/SimpleDateRangeFields.jsx";
@@ -25,31 +27,6 @@ const TIPOS_COMPRA_OPTIONS = ["CPC", "CPM", "CPV", "CPE", "CPL", "CPT", "CPF", "
 const inputStyle = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card-bg)", color: "var(--text-primary)", fontSize: 13, boxSizing: "border-box" };
 const textareaStyle = { ...inputStyle, fontFamily: "inherit", resize: "vertical" };
 
-// Linha de campo com checkbox "Aplicar" -- so campos marcados entram no patch
-// enviado ao backend, os demais ficam como estao em cada criativo selecionado.
-// Isso evita sobrescrever tudo por engano quando o usuario so quer mudar 1 ou 2
-// campos entre varios criativos diferentes.
-function CampoEmMassa({ label, aplicar, onToggleAplicar, children }) {
-  return (
-    <div
-      style={{
-        opacity: aplicar ? 1 : 0.55, padding: 12, borderRadius: 10,
-        border: `1px solid ${aplicar ? "var(--accent-soft)" : "var(--border)"}`,
-        background: aplicar ? "var(--accent-soft)" : "transparent",
-        transition: "opacity 0.15s ease, border-color 0.15s ease, background 0.15s ease",
-      }}
-    >
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 600, color: aplicar ? "var(--accent)" : "var(--text-secondary)", marginBottom: 8, cursor: "pointer" }}>
-        <input type="checkbox" checked={aplicar} onChange={onToggleAplicar} />
-        {label}
-      </label>
-      <div style={{ pointerEvents: aplicar ? "auto" : "none" }}>{children}</div>
-    </div>
-  );
-}
-
-// Dropdown de status com o mesmo badge colorido usado no card/StatusPopover,
-// em vez do <select> nativo do navegador (sem cor, inconsistente com o resto).
 function StatusSelect({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -104,9 +81,6 @@ function StatusSelect({ value, onChange, options }) {
   );
 }
 
-// Dropdown de texto simples com o mesmo padrao visual do StatusSelect acima,
-// em vez do <select> nativo do navegador (visual datado, inconsistente com
-// o resto do app).
 function SimpleSelect({ value, onChange, options, placeholder = "Selecione..." }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -162,46 +136,98 @@ function SimpleSelect({ value, onChange, options, placeholder = "Selecione..." }
   );
 }
 
-export default function BulkEditModal({ ids, onClose, onSaved }) {
-  const [aplicar, setAplicar] = useState({});
-  const [status, setStatus] = useState("");
-  const [campanha, setCampanha] = useState("");
-  const [veiculo, setVeiculo] = useState("");
-  const [plataforma, setPlataforma] = useState("");
-  const [tipoCompra, setTipoCompra] = useState("");
-  const [campaignName, setCampaignName] = useState("");
-  const [conjunto, setConjunto] = useState("");
-  const [formato, setFormato] = useState([]);
-  // Mesma regra do CreativeFormModal.jsx: Performance Max e o unico formato
-  // que permite combinar com outros -- qualquer outro formato e excludente.
-  function handleFormatoChange(novos) {
-    if (novos.includes("Performance Max")) {
-      setFormato(novos);
-      return;
-    }
-    setFormato(novos.length ? [novos[novos.length - 1]] : []);
+// Lista de campos editaveis -- define o menu lateral e, pra cada campo, como
+// ler o valor atual de um creative bruto (raw, snake_case do banco) pra
+// detectar se os selecionados ja divergem entre si.
+const CAMPOS = [
+  { key: "status", label: "Status", getValor: (c) => c.status || "" },
+  { key: "campanha", label: "Campanha", getValor: (c) => c.campanha || "" },
+  { key: "veiculo", label: "Veículo", getValor: (c) => c.veiculo || "" },
+  { key: "plataforma", label: "Plataforma", getValor: (c) => c.plataforma || "" },
+  { key: "tipoCompra", label: "Tipo de compra", getValor: (c) => c.tipos_compra?.[0] || "" },
+  { key: "formularioNativo", label: "Formulário de captura", getValor: (c) => (c.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa"), soSe: (c) => c.tipos_compra?.includes("CPL") },
+  { key: "formato", label: "Formato", getValor: (c) => (Array.isArray(c.formato) ? c.formato.join(", ") : "") },
+  { key: "campaignName", label: "Campaign Name", getValor: (c) => c.campaign_name || "" },
+  { key: "conjunto", label: "Ad Group", getValor: (c) => c.conjunto || "" },
+  { key: "urlDestino", label: "URL de destino", getValor: (c) => c.url_destino || "" },
+  { key: "impulsionado", label: "Tipo de publicação", getValor: (c) => (c.impulsionado ? "Impulsionado" : "Dark Post") },
+  { key: "titulo", label: "Título", getValor: (c) => c.titulo || "" },
+  { key: "periodo", label: "Período de veiculação", getValor: (c) => `${c.periodo_inicio || ""} - ${c.periodo_fim || ""}` },
+  { key: "segmentacao", label: "Segmentação", getValor: (c) => c.segmentacao || "" },
+  { key: "descricao", label: "Descrição", getValor: (c) => c.descricao || "" },
+  { key: "observacoes", label: "Observações", getValor: (c) => c.observacoes || "" },
+  { key: "ehPerformance", label: "Performance", getValor: (c) => (c.eh_performance ? "Sim" : "Não") },
+  { key: "orcamentoProjetado", label: "Orçamento projetado", getValor: (c) => (c.orcamento_projetado ? String(c.orcamento_projetado) : ""), soSe: (c) => c.eh_performance },
+  { key: "nome", label: "Nome", getValor: (c) => c.nome || "", confirmarEmMassa: true },
+  { key: "adName", label: "Ad Name", getValor: (c) => c.ad_name || "", confirmarEmMassa: true },
+  { key: "posicionamento", label: "Posicionamento", getValor: (c) => c.posicionamento || "" },
+  { key: "linkPostagem", label: "Link da postagem", getValor: (c) => c.link_postagem || "" },
+  { key: "searchTitulos", label: "Títulos (Search)", getValor: (c) => (c.search_campos?.titulo || []).join(" | "), soSe: (c) => c.formato?.includes("Search") },
+  { key: "searchTitulosLongos", label: "Títulos longos (Search)", getValor: (c) => (c.search_campos?.tituloLongo || []).join(" | "), soSe: (c) => c.formato?.includes("Search") },
+  { key: "searchTextos", label: "Descrições (Search)", getValor: (c) => (c.search_campos?.texto || []).join(" | "), soSe: (c) => c.formato?.includes("Search") },
+  { key: "searchPalavrasChave", label: "Palavras-chave (Search)", getValor: (c) => c.search_campos?.palavrasChave || "", soSe: (c) => c.formato?.includes("Search") },
+];
+
+// Campos cujo valor "achatado" (getValor) precisa ser reconvertido pra um
+// formato diferente antes de ir pro FormData -- os demais campos vao como
+// string simples (o padrao coberto pelo "default" abaixo).
+function valorParaFormData(fd, campoKey, valor) {
+  switch (campoKey) {
+    case "tipoCompra":
+      fd.append("tiposCompra", JSON.stringify(valor ? [valor] : []));
+      break;
+    case "formularioNativo":
+      fd.append("formularioNativo", String(valor === "Nativo da plataforma"));
+      break;
+    case "formato":
+      fd.append("formato", JSON.stringify(valor ? valor.split(", ").filter(Boolean) : []));
+      break;
+    case "impulsionado":
+      fd.append("impulsionado", String(valor === "Impulsionado"));
+      break;
+    case "ehPerformance":
+      fd.append("ehPerformance", String(valor === "Sim"));
+      break;
+    case "orcamentoProjetado":
+      // valor ja vem em reais (nao centavos) do controle de moeda.
+      fd.append("orcamentoProjetado", valor || "0");
+      break;
+    case "searchTitulos":
+      fd.append("searchCampos", JSON.stringify({ titulo: valor ? valor.split(" | ").filter(Boolean) : [] }));
+      break;
+    case "searchTitulosLongos":
+      fd.append("searchCampos", JSON.stringify({ tituloLongo: valor ? valor.split(" | ").filter(Boolean) : [] }));
+      break;
+    case "searchTextos":
+      fd.append("searchCampos", JSON.stringify({ texto: valor ? valor.split(" | ").filter(Boolean) : [] }));
+      break;
+    case "searchPalavrasChave":
+      fd.append("searchCampos", JSON.stringify({ palavrasChave: valor }));
+      break;
+    default:
+      fd.append(campoKey, valor);
   }
-  const [periodoInicio, setPeriodoInicio] = useState("");
-  const [periodoFim, setPeriodoFim] = useState("");
-  const [urlDestino, setUrlDestino] = useState("");
-  const [impulsionado, setImpulsionado] = useState(true);
-  const [segmentacao, setSegmentacao] = useState("");
-  const [titulo, setTitulo] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [observacoes, setObservacoes] = useState("");
-  const [ehPerformance, setEhPerformance] = useState(false);
-  const [orcamentoCentavos, setOrcamentoCentavos] = useState(0);
-  const [formularioNativo, setFormularioNativo] = useState(false);
-  const [observacoesFormularioNativo, setObservacoesFormularioNativo] = useState("");
+}
+
+export default function BulkEditModal({ creatives, onClose, onSaved }) {
+  const [campoAtivo, setCampoAtivo] = useState(null);
+
+  // Unica fonte de verdade: valor atual (editavel) de cada campo, por
+  // criativo -- { [campoKey]: { [creativeId]: valor } }. Inicia vazio, e
+  // cada painel de campo se auto-preenche com o valor real de cada criativo
+  // na primeira vez que e aberto (ver useEffect abaixo).
+  const [valores, setValores] = useState({});
+  // Quais criativos tiveram o valor de fato TOCADO (mudado) num campo --
+  // so esses entram no salvamento; abrir o painel e nao mexer em nada nao
+  // deve reescrever tudo com o mesmo valor que ja estava.
+  const [tocado, setTocado] = useState({});
+  const [aplicarATodosValor, setAplicarATodosValor] = useState({});
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [resultado, setResultado] = useState(null);
-  const [desfazendo, setDesfazendo] = useState(false);
-  const [desfeito, setDesfeito] = useState(false);
+  const [confirmandoCampo, setConfirmandoCampo] = useState(null);
 
-  // Opcoes reais de Campanha/Veiculo pro SearchSelect -- antes ficavam vazias
-  // (options={[]}), entao na pratica nao dava pra escolher nada nesses dois campos.
   const [campanhasOptions, setCampanhasOptions] = useState([]);
   const [veiculosOptions, setVeiculosOptions] = useState([]);
   const [plataformasOptions, setPlataformasOptions] = useState([]);
@@ -212,60 +238,97 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
     getPlataformas().then((rows) => setPlataformasOptions(rows.map((p) => p.nome))).catch(() => {});
   }, []);
 
-  function toggle(key) {
-    setAplicar((prev) => ({ ...prev, [key]: !prev[key] }));
+  // Campos visiveis no menu -- "soSe" filtra Formulario de captura/Search
+  // pra so aparecer quando fizer sentido pro conjunto selecionado.
+  const camposVisiveis = CAMPOS.filter((c) => !c.soSe || creatives.some(c.soSe));
+
+  function valoresDoCampo(campoKey) {
+    const campo = CAMPOS.find((c) => c.key === campoKey);
+    if (!campo) return [];
+    return creatives.map((c) => campo.getValor(c));
+  }
+  function divergente(campoKey) {
+    return new Set(valoresDoCampo(campoKey)).size > 1;
   }
 
-  const nenhumCampoMarcado = Object.values(aplicar).every((v) => !v);
+  // Ao abrir um campo pela 1a vez, pre-preenche "valores" com o que cada
+  // criativo ja tem hoje -- assim a lista individual sempre mostra algo
+  // coerente, mesmo antes do usuario mexer em qualquer linha.
+  useEffect(() => {
+    if (!campoAtivo || valores[campoAtivo]) return;
+    const campo = CAMPOS.find((c) => c.key === campoAtivo);
+    const inicial = {};
+    for (const c of creatives) inicial[c.id] = campo.getValor(c);
+    setValores((prev) => ({ ...prev, [campoAtivo]: inicial }));
+  }, [campoAtivo]);
+
+  function setValorLinha(campoKey, creativeId, valor) {
+    setValores((prev) => ({ ...prev, [campoKey]: { ...(prev[campoKey] || {}), [creativeId]: valor } }));
+    setTocado((prev) => ({ ...prev, [campoKey]: { ...(prev[campoKey] || {}), [creativeId]: true } }));
+  }
+  // Campo "aplicar a todos" no topo -- preenche todas as linhas de baixo de
+  // uma vez; o usuario ainda pode ajustar uma linha especifica depois.
+  function aplicarATodos(campoKey, valor) {
+    setAplicarATodosValor((prev) => ({ ...prev, [campoKey]: valor }));
+    const novoValores = {};
+    const novoTocado = {};
+    for (const c of creatives) { novoValores[c.id] = valor; novoTocado[c.id] = true; }
+    setValores((prev) => ({ ...prev, [campoKey]: novoValores }));
+    setTocado((prev) => ({ ...prev, [campoKey]: novoTocado }));
+  }
+
+  const algumCampoTocado = Object.values(tocado).some((porId) => Object.values(porId).some(Boolean));
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (nenhumCampoMarcado) {
-      setError("Marque ao menos um campo para aplicar");
-      return;
-    }
-    if (aplicar.periodo && periodoInicio && periodoFim && periodoInicio > periodoFim) {
-      setError("A data inicial não pode ser depois da data final");
-      return;
-    }
-    if (aplicar.formularioNativo && formularioNativo && !observacoesFormularioNativo.trim()) {
-      setError("Descreva o formulário nativo");
+    if (!algumCampoTocado) {
+      setError("Altere ao menos um campo para aplicar");
       return;
     }
 
-    const patch = {};
-    if (aplicar.status) patch.status = status;
-    if (aplicar.campanha) patch.campanha = campanha;
-    if (aplicar.veiculo) patch.veiculo = veiculo;
-    if (aplicar.plataforma) patch.plataforma = plataforma;
-    if (aplicar.tipoCompra) patch.tiposCompra = tipoCompra ? [tipoCompra] : [];
-    if (aplicar.campaignName) patch.campaignName = campaignName;
-    if (aplicar.conjunto) patch.conjunto = conjunto;
-    if (aplicar.formato) patch.formato = formato;
-    if (aplicar.periodo) { patch.periodoInicio = periodoInicio; patch.periodoFim = periodoFim; }
-    if (aplicar.urlDestino) patch.urlDestino = urlDestino;
-    if (aplicar.impulsionado) patch.impulsionado = String(impulsionado);
-    if (aplicar.segmentacao) patch.segmentacao = segmentacao;
-    if (aplicar.titulo) patch.titulo = titulo;
-    if (aplicar.descricao) patch.descricao = descricao;
-    if (aplicar.observacoes) patch.observacoes = observacoes;
-    if (aplicar.ehPerformance) {
-      patch.ehPerformance = String(ehPerformance);
-      if (ehPerformance) patch.orcamentoProjetado = String(orcamentoCentavos / 100);
+    // Nome/Ad Name aplicados a TODOS os selecionados com o mesmo valor
+    // (via "aplicar a todos") arriscam duplicar -- pede confirmacao extra
+    // uma unica vez antes de seguir com o salvamento de fato.
+    for (const campo of CAMPOS) {
+      if (!campo.confirmarEmMassa) continue;
+      const porId = tocado[campo.key] || {};
+      const idsTocados = Object.keys(porId).filter((id) => porId[id]);
+      if (idsTocados.length < 2) continue;
+      const valoresTocados = idsTocados.map((id) => valores[campo.key][id]);
+      const mesmoValor = new Set(valoresTocados).size === 1;
+      if (mesmoValor && confirmandoCampo !== campo.key) {
+        setConfirmandoCampo(campo.key);
+        setCampoAtivo(campo.key);
+        setError(`Tem certeza? "${campo.label}" ficará igual em ${idsTocados.length} criativos. Clique em "Aplicar" novamente para confirmar.`);
+        return;
+      }
     }
-    if (aplicar.formularioNativo) {
-      patch.formularioNativo = String(formularioNativo);
-      patch.observacoesFormularioNativo = formularioNativo ? observacoesFormularioNativo : "";
-    }
+    setConfirmandoCampo(null);
 
     setSaving(true);
     try {
-      const res = await bulkUpdateCreatives(ids, patch);
-      setResultado(res);
-      if (res.falharam.length === 0) {
-        onSaved();
+      const atualizados = [];
+      const falharam = [];
+
+      for (const campoKey of Object.keys(tocado)) {
+        const porId = tocado[campoKey] || {};
+        for (const c of creatives) {
+          if (!porId[c.id]) continue;
+          const valor = valores[campoKey]?.[c.id] ?? "";
+          try {
+            const fd = new FormData();
+            valorParaFormData(fd, campoKey, valor);
+            await updateMatrixCreative(c.id, fd);
+            if (!atualizados.includes(c.id)) atualizados.push(c.id);
+          } catch {
+            if (!falharam.some((f) => f.id === c.id)) falharam.push({ id: c.id, motivo: "Falha ao salvar" });
+          }
+        }
       }
+
+      setResultado({ atualizados, falharam, operationId: null });
+      if (falharam.length === 0) onSaved();
     } catch (err) {
       setError(err.response?.data?.error || "Falha ao aplicar edição em massa");
     } finally {
@@ -273,21 +336,117 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
     }
   }
 
-  // Reverte a edicao recem-aplicada direto daqui, cobrindo o caso mais comum
-  // (perceber o erro na hora) sem precisar abrir o painel "Ultimas edições".
-  // So aparece quando o backend de fato gerou uma operacao desfazivel
-  // (operationId nao vem quando so status foi alterado, por ex).
-  async function handleDesfazer() {
-    if (!resultado?.operationId) return;
-    setDesfazendo(true);
-    try {
-      await undoBulkEditOperation(resultado.operationId);
-      setDesfeito(true);
-      onSaved();
-    } catch (err) {
-      setError(err.response?.data?.error || "Não foi possível desfazer esta edição.");
-    } finally {
-      setDesfazendo(false);
+  // Painel do campo selecionado: campo "aplicar a todos" sempre no topo +
+  // lista com o valor atual de cada criativo, sempre visivel e editavel.
+  function renderPainelCampo(campoKey) {
+    const campo = CAMPOS.find((c) => c.key === campoKey);
+    const diverge = divergente(campoKey);
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div>
+          <strong style={{ fontSize: 15, fontWeight: 700 }}>{campo.label}</strong>
+          {diverge && (
+            <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--warn, #b45309)", fontWeight: 600 }}>
+              Valores diferentes entre os selecionados: {[...new Set(valoresDoCampo(campoKey))].filter(Boolean).join(", ") || "vazio"}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+            Aplicar a todos de uma vez
+          </label>
+          {renderControle(campoKey, aplicarATodosValor[campoKey] ?? "", (v) => aplicarATodos(campoKey, v))}
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+          <label style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+            Valor individual por criativo
+          </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {creatives.map((c) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, background: "var(--bg)" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "var(--card-bg)" }}>
+                  {c.cloudinary_url && (
+                    c.tipo_midia === "video" ? (
+                      <video src={c.cloudinary_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <img src={c.cloudinary_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    )
+                  )}
+                </div>
+                <span style={{ flex: 1, fontSize: 12.5, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.titulo || c.nome || `Criativo #${c.id}`}
+                </span>
+                <div style={{ width: 240 }}>
+                  {renderControle(campoKey, valores[campoKey]?.[c.id] ?? "", (v) => setValorLinha(campoKey, c.id, v))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Controle unico por campo -- usado tanto na linha "aplicar a todos"
+  // quanto em cada linha individual, so muda o value/onChange recebido.
+  function renderControle(campoKey, valor, onChange) {
+    switch (campoKey) {
+      case "status":
+        return <StatusSelect value={valor} onChange={onChange} options={STATUS_OPTIONS_AGENCIA} />;
+      case "campanha":
+        return <SearchSelect value={valor} onChange={(v) => onChange(v || "")} options={campanhasOptions} placeholder="Nome da campanha" />;
+      case "veiculo":
+        return <SearchSelect value={valor} onChange={(v) => onChange(v || "")} options={veiculosOptions} placeholder="Nome do veículo" />;
+      case "plataforma":
+        return <SearchSelect value={valor} onChange={(v) => onChange(v || "")} options={plataformasOptions} placeholder="Nome da plataforma" />;
+      case "tipoCompra":
+        return <SimpleSelect value={valor} onChange={onChange} options={TIPOS_COMPRA_OPTIONS} />;
+      case "formularioNativo":
+        return <SimpleSelect value={valor} onChange={onChange} options={["Site/LP externa", "Nativo da plataforma"]} />;
+      case "formato":
+        return (
+          <MultiSearchSelect
+            value={valor ? valor.split(", ").filter(Boolean) : []}
+            onChange={(novos) => {
+              if (novos.includes("Performance Max")) { onChange(novos.join(", ")); return; }
+              onChange((novos.length ? [novos[novos.length - 1]] : []).join(", "));
+            }}
+            options={TODOS_FORMATOS}
+            placeholder="Buscar formato: Search, Stories, Reels..."
+          />
+        );
+      case "impulsionado":
+        return <SimpleSelect value={valor} onChange={onChange} options={["Impulsionado", "Dark Post"]} />;
+      case "periodo": {
+        const [ini = "", fim = ""] = (valor || "").split(" - ");
+        return <SimpleDateRangeFields start={ini} end={fim} onChange={(s, en) => onChange(`${s} - ${en}`)} />;
+      }
+      case "ehPerformance":
+        return <SimpleSelect value={valor} onChange={onChange} options={["Sim", "Não"]} />;
+      case "orcamentoProjetado": {
+        const centavos = Math.round(Number(valor || 0) * 100);
+        return (
+          <input
+            type="text"
+            inputMode="numeric"
+            value={(centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            onChange={(e) => {
+              const digitos = e.target.value.replace(/\D/g, "");
+              onChange(digitos ? (Number(digitos) / 100).toFixed(2) : "0");
+            }}
+            style={inputStyle}
+          />
+        );
+      }
+      case "segmentacao":
+      case "descricao":
+      case "observacoes":
+        return <textarea value={valor} onChange={(e) => onChange(e.target.value)} rows={2} style={textareaStyle} />;
+      default:
+        return <input value={valor} onChange={(e) => onChange(e.target.value)} style={inputStyle} />;
     }
   }
 
@@ -304,16 +463,16 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
         style={{
-          width: 640, maxHeight: "85vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 18,
-          background: "var(--card-bg)", borderRadius: 18, boxShadow: "0 24px 60px rgba(10,16,32,0.35)", padding: 24,
+          width: 820, maxWidth: "95vw", height: 600, maxHeight: "85vh", display: "flex", flexDirection: "column",
+          background: "var(--card-bg)", borderRadius: 18, boxShadow: "0 24px 60px rgba(10,16,32,0.35)", overflow: "hidden",
           animation: "bulkEditModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, padding: "20px 24px 14px", borderBottom: "1px solid var(--border)" }}>
           <div>
             <strong style={{ fontSize: 17, fontWeight: 700 }}>Editar em massa</strong>
             <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "var(--text-secondary)" }}>
-              {ids.length} criativo{ids.length !== 1 ? "s" : ""} selecionado{ids.length !== 1 ? "s" : ""}
+              {creatives.length} criativo{creatives.length !== 1 ? "s" : ""} selecionado{creatives.length !== 1 ? "s" : ""} — escolha um campo ao lado
             </p>
           </div>
           <button
@@ -331,197 +490,75 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
             </svg>
           </button>
         </div>
-        <p style={{ margin: "-8px 0 0", fontSize: 12, color: "var(--text-secondary)" }}>
-          Marque os campos que deseja alterar. Só os campos marcados serão aplicados a todos os criativos
-          selecionados — os demais permanecem como estão em cada um.
-        </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <CampoEmMassa label="Status" aplicar={!!aplicar.status} onToggleAplicar={() => toggle("status")}>
-            <StatusSelect value={status} onChange={setStatus} options={STATUS_OPTIONS_AGENCIA} />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Campanha" aplicar={!!aplicar.campanha} onToggleAplicar={() => toggle("campanha")}>
-            <SearchSelect value={campanha} onChange={(v) => setCampanha(v || "")} options={campanhasOptions} placeholder="Nome da campanha" />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Veículo" aplicar={!!aplicar.veiculo} onToggleAplicar={() => toggle("veiculo")}>
-            <SearchSelect value={veiculo} onChange={(v) => setVeiculo(v || "")} options={veiculosOptions} placeholder="Nome do veículo" />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Plataforma" aplicar={!!aplicar.plataforma} onToggleAplicar={() => toggle("plataforma")}>
-            <SearchSelect value={plataforma} onChange={(v) => setPlataforma(v || "")} options={plataformasOptions} placeholder="Nome da plataforma" />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Tipo de compra" aplicar={!!aplicar.tipoCompra} onToggleAplicar={() => toggle("tipoCompra")}>
-            <SimpleSelect value={tipoCompra} onChange={setTipoCompra} options={TIPOS_COMPRA_OPTIONS} />
-          </CampoEmMassa>
-
-          {/* Formulario nativo -- so aparece quando o valor escolhido em "Tipo de
-              compra" e CPL (mesma regra do CreativeFormModal.jsx individual, onde
-              so faz sentido pra CPL). Nao exige a checkbox "Tipo de compra" marcada
-              -- o usuario pode so mexer no formulario de captura de criativos que
-              ja sao CPL, sem precisar reaplicar o tipo de compra em si. */}
-          {tipoCompra === "CPL" && (
-            <div style={{ gridColumn: "1 / -1" }}>
-              <CampoEmMassa label="Formulário de captura" aplicar={!!aplicar.formularioNativo} onToggleAplicar={() => toggle("formularioNativo")}>
-                <div style={{ display: "flex", gap: 8, marginBottom: formularioNativo ? 12 : 0 }}>
-                  {[{ label: "Site/LP externa", val: false }, { label: "Nativo da plataforma", val: true }].map(({ label, val }) => {
-                    const sel = formularioNativo === val;
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => setFormularioNativo(val)}
-                        style={{
-                          flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
-                          background: sel ? "var(--accent-soft)" : "transparent", color: sel ? "var(--accent)" : "var(--text-secondary)",
-                          fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer", transition: "background 0.15s ease, border-color 0.15s ease",
-                        }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <nav style={{ width: 220, flexShrink: 0, borderRight: "1px solid var(--border)", padding: "12px 10px", overflowY: "auto" }}>
+            {camposVisiveis.map((campo) => {
+              const ativo = campoAtivo === campo.key;
+              const campoTocado = Object.values(tocado[campo.key] || {}).some(Boolean);
+              const diverge = divergente(campo.key);
+              return (
+                <div
+                  key={campo.key}
+                  onClick={() => setCampoAtivo(campo.key)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    padding: "10px 12px", borderRadius: 10, cursor: "pointer", marginBottom: 2,
+                    color: ativo ? "var(--accent)" : "var(--text-secondary)",
+                    background: ativo ? "var(--accent-soft)" : "transparent",
+                    fontWeight: ativo ? 600 : 400, fontSize: 13,
+                  }}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{campo.label}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                    {diverge && (
+                      <span title="Valores diferentes entre os selecionados" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--warn, #b45309)" }} />
+                    )}
+                    {campoTocado && (
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)" }} />
+                    )}
+                  </span>
                 </div>
-                {formularioNativo && (
-                  <textarea
-                    value={observacoesFormularioNativo}
-                    onChange={(e) => setObservacoesFormularioNativo(e.target.value)}
-                    rows={3}
-                    style={textareaStyle}
-                    placeholder="Descreva os campos coletados, ex: Nome / Telefone / Email"
-                  />
-                )}
-              </CampoEmMassa>
-            </div>
-          )}
+              );
+            })}
+          </nav>
 
-          <CampoEmMassa label="Formato" aplicar={!!aplicar.formato} onToggleAplicar={() => toggle("formato")}>
-            <MultiSearchSelect value={formato} onChange={handleFormatoChange} options={TODOS_FORMATOS} placeholder="Buscar formato: Search, Stories, Reels..." />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Campaign Name" aplicar={!!aplicar.campaignName} onToggleAplicar={() => toggle("campaignName")}>
-            <input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} style={inputStyle} />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Ad Group" aplicar={!!aplicar.conjunto} onToggleAplicar={() => toggle("conjunto")}>
-            <input value={conjunto} onChange={(e) => setConjunto(e.target.value)} style={inputStyle} />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="URL de destino" aplicar={!!aplicar.urlDestino} onToggleAplicar={() => toggle("urlDestino")}>
-            <input value={urlDestino} onChange={(e) => setUrlDestino(e.target.value)} style={inputStyle} placeholder="https://" />
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Tipo de publicação" aplicar={!!aplicar.impulsionado} onToggleAplicar={() => toggle("impulsionado")}>
-            <div style={{ display: "flex", gap: 12, paddingTop: 6 }}>
-              {[{ label: "Impulsionado", val: true }, { label: "Dark Post", val: false }].map(({ label, val }) => (
-                <label key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                  <input type="radio" name="impulsionado-massa" checked={impulsionado === val} onChange={() => setImpulsionado(val)} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </CampoEmMassa>
-
-          <CampoEmMassa label="Título" aplicar={!!aplicar.titulo} onToggleAplicar={() => toggle("titulo")}>
-            <input value={titulo} onChange={(e) => setTitulo(e.target.value)} style={inputStyle} />
-          </CampoEmMassa>
-
-          <div style={{ gridColumn: "1 / -1" }}>
-            <CampoEmMassa label="Período de veiculação" aplicar={!!aplicar.periodo} onToggleAplicar={() => toggle("periodo")}>
-              <SimpleDateRangeFields start={periodoInicio} end={periodoFim} onChange={(s, en) => { setPeriodoInicio(s); setPeriodoFim(en); }} />
-            </CampoEmMassa>
-          </div>
-
-          <div style={{ gridColumn: "1 / -1" }}>
-            <CampoEmMassa label="Segmentação" aplicar={!!aplicar.segmentacao} onToggleAplicar={() => toggle("segmentacao")}>
-              <textarea value={segmentacao} onChange={(e) => setSegmentacao(e.target.value)} rows={2} style={textareaStyle} />
-            </CampoEmMassa>
-          </div>
-
-          <div style={{ gridColumn: "1 / -1" }}>
-            <CampoEmMassa label="Descrição" aplicar={!!aplicar.descricao} onToggleAplicar={() => toggle("descricao")}>
-              <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} style={textareaStyle} />
-            </CampoEmMassa>
-          </div>
-
-          <div style={{ gridColumn: "1 / -1" }}>
-            <CampoEmMassa label="Observações" aplicar={!!aplicar.observacoes} onToggleAplicar={() => toggle("observacoes")}>
-              <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={2} style={textareaStyle} />
-            </CampoEmMassa>
-          </div>
-
-          <div style={{ gridColumn: "1 / -1" }}>
-            <CampoEmMassa label="Performance (aba Performance + orçamento projetado)" aplicar={!!aplicar.ehPerformance} onToggleAplicar={() => toggle("ehPerformance")}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
-                  <input type="checkbox" checked={ehPerformance} onChange={(e) => setEhPerformance(e.target.checked)} />
-                  Marcar como Performance
-                </label>
-                {ehPerformance && (
-                  <div style={{ minWidth: 160 }}>
-                    <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>Orçamento projetado</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={(orcamentoCentavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      onChange={(e) => {
-                        const digitos = e.target.value.replace(/\D/g, "");
-                        setOrcamentoCentavos(digitos ? Number(digitos) : 0);
-                      }}
-                      style={inputStyle}
-                    />
-                  </div>
-                )}
-              </div>
-            </CampoEmMassa>
+          <div key={campoAtivo} style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 24, animation: "bulkEditPainelIn 0.15s ease-out" }}>
+            {campoAtivo ? renderPainelCampo(campoAtivo) : (
+              <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Escolha um campo na lista ao lado para editar.</p>
+            )}
           </div>
         </div>
 
-        {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(220,38,38,0.1)", color: "var(--danger)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            {error}
-          </div>
-        )}
+        <div style={{ padding: "0 24px" }}>
+          {error && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(220,38,38,0.1)", color: "var(--danger)", borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600, marginTop: 14 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {error}
+            </div>
+          )}
 
-        {resultado && (
-          <div
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
-              borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600,
-              background: resultado.falharam.length > 0 ? "rgba(220,38,38,0.1)" : "var(--accent-soft)",
-              color: resultado.falharam.length > 0 ? "var(--danger)" : "var(--accent)",
-            }}
-          >
-            <span>
-              {desfeito
-                ? "Edição desfeita — os criativos voltaram ao estado anterior."
-                : `${resultado.atualizados.length} criativo(s) atualizado(s)${resultado.falharam.length > 0 ? `, ${resultado.falharam.length} falharam` : ""}.`}
-            </span>
-            {resultado.operationId && !desfeito && (
-              <button
-                type="button"
-                onClick={handleDesfazer}
-                disabled={desfazendo}
-                style={{
-                  border: "1px solid var(--accent)", background: "transparent", color: "var(--accent)",
-                  borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700,
-                  cursor: desfazendo ? "default" : "pointer", opacity: desfazendo ? 0.6 : 1,
-                }}
-              >
-                {desfazendo ? "Desfazendo..." : "Desfazer agora"}
-              </button>
-            )}
-          </div>
-        )}
+          {resultado && (
+            <div
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
+                borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 600, marginTop: 14,
+                background: resultado.falharam.length > 0 ? "rgba(220,38,38,0.1)" : "var(--accent-soft)",
+                color: resultado.falharam.length > 0 ? "var(--danger)" : "var(--accent)",
+              }}
+            >
+              <span>
+                {`${resultado.atualizados.length} criativo(s) atualizado(s)${resultado.falharam.length > 0 ? `, ${resultado.falharam.length} falharam` : ""}. Para desfazer, use o painel "Últimas edições".`}
+              </span>
+            </div>
+          )}
+        </div>
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: "14px 24px", borderTop: "1px solid var(--border)" }}>
           <button
             type="button"
             onClick={onClose}
@@ -531,14 +568,14 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
           </button>
           <button
             type="submit"
-            disabled={saving || nenhumCampoMarcado}
+            disabled={saving || !algumCampoTocado}
             style={{
               padding: "10px 18px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff",
-              fontSize: 13, fontWeight: 600, cursor: saving || nenhumCampoMarcado ? "default" : "pointer",
-              opacity: saving || nenhumCampoMarcado ? 0.6 : 1, transition: "opacity 0.15s ease",
+              fontSize: 13, fontWeight: 600, cursor: saving || !algumCampoTocado ? "default" : "pointer",
+              opacity: saving || !algumCampoTocado ? 0.6 : 1, transition: "opacity 0.15s ease",
             }}
           >
-            {saving ? "Aplicando..." : `Aplicar a ${ids.length} criativo(s)`}
+            {saving ? "Aplicando..." : `Aplicar a ${creatives.length} criativo(s)`}
           </button>
         </div>
       </form>
@@ -550,6 +587,10 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
         @keyframes bulkEditModalIn {
           from { opacity: 0; transform: scale(0.97) translateY(8px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes bulkEditPainelIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

@@ -782,6 +782,12 @@ export const CAMPOS_EDICAO_EM_MASSA = [
   "urlDestino", "impulsionado", "segmentacao", "titulo", "posicionamento",
   "descricao", "observacoes", "ehPerformance", "orcamentoProjetado",
   "formularioNativo", "observacoesFormularioNativo",
+  // Liberados a pedido do usuario -- nome/adName tem risco real de duplicar
+  // entre varios criativos se aplicados em massa sem cuidado (adName
+  // duplicado quebra o casamento com a planilha de Realizado, que depende
+  // dele ser unico), por isso o frontend pede confirmacao extra soh pra
+  // esses dois antes de aplicar a todos (ver BulkEditModal.jsx).
+  "nome", "adName", "linkPostagem", "searchCampos",
 ];
 
 // Edicao em massa (Matriz de Conteudo): aplica o mesmo patch (status e/ou outros

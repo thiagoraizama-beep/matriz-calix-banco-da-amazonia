@@ -672,7 +672,13 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           onSaved={load}
         />
       )}
-      {bulkModalAberto && <BulkEditModal ids={selecionados} onClose={() => setBulkModalAberto(false)} onSaved={handleBulkSaved} />}
+      {bulkModalAberto && (
+        <BulkEditModal
+          creatives={(creatives || []).filter((c) => selecionados.includes(c.id))}
+          onClose={() => setBulkModalAberto(false)}
+          onSaved={handleBulkSaved}
+        />
+      )}
       {bulkHistoryAberto && (
         <BulkEditHistoryPanel
           onClose={() => setBulkHistoryAberto(false)}
