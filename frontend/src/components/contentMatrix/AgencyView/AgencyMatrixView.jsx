@@ -128,6 +128,18 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
   const statusCounts = creatives ? groupByStatus(creatives) : {};
+  // Verba total da campanha: soma orcamento_projetado (Planejado) dos
+  // criativos marcados como "Performance" (eh_performance) -- mesmo
+  // conceito usado no card da lista de campanhas (Home). Realizado soma o
+  // investimento real (performanceMap, ja carregado pra alimentar a
+  // OrcamentoBar de cada criativo) so dos MESMOS criativos "Performance" --
+  // sem isso o Realizado incluiria investimento de criativos sem orcamento
+  // projetado, tornando a comparacao sem sentido. So faz sentido dentro de
+  // uma campanha especifica (campanhaId) -- fora dela misturaria varias
+  // campanhas numa soma so.
+  const criativosPerformance = campanhaId ? (creatives || []).filter((c) => c.eh_performance && c.orcamento_projetado) : [];
+  const verbaPlanejada = criativosPerformance.reduce((soma, c) => soma + Number(c.orcamento_projetado), 0);
+  const verbaRealizada = criativosPerformance.reduce((soma, c) => soma + (performanceMap[c.id]?.investimento || 0), 0);
 
   function load() {
     setCreatives(null);
@@ -575,6 +587,36 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     </div>
   );
 
+  const verbaTotalBadge = creatives && verbaPlanejada > 0 && (
+    <div className="card" style={{ padding: "14px 18px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
+          {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Verba total
+        </span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 5 }}>
+        <span>Gasto</span>
+        <span style={{ fontWeight: 700, color: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--text-primary)" }}>
+          {verbaRealizada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} / {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
+      </div>
+      <div style={{ height: 7, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.min(100, (verbaRealizada / verbaPlanejada) * 100)}%`,
+            borderRadius: 999,
+            background: verbaRealizada > verbaPlanejada ? "var(--danger)" : "var(--success)",
+            transition: "width 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        />
+      </div>
+    </div>
+  );
+
   const statusGrid = creatives && (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
       {Object.entries(statusCounts).map(([status, count]) => {
@@ -685,6 +727,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         )}
         {syncFeedback}
         {urgenciaBanner}
+        {verbaTotalBadge}
         {statusGrid}
         {visualizacao === "kanban" ? kanbanBoard : grid}
         {modals}
@@ -705,6 +748,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       {syncResult && <div style={{ textAlign: "right" }}>{syncFeedback}</div>}
       {urgenciaBanner}
       {selecaoBarra}
+      {verbaTotalBadge}
       {statusGrid}
       {visualizacao === "kanban" ? kanbanBoard : grid}
       {modals}

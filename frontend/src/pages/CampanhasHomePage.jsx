@@ -224,6 +224,27 @@ function CampanhaCard({ campanha, navigate }) {
         </p>
       )}
 
+      {campanha.totalVerba > 0 && (
+        <div style={{ margin: "-2px 0 14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-secondary)", marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>
+            <span>Gasto</span>
+            <span style={{ fontWeight: 700, color: campanha.totalGasto > campanha.totalVerba ? "var(--danger)" : "var(--text-primary)" }}>
+              {Number(campanha.totalGasto || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} / {Number(campanha.totalVerba).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            </span>
+          </div>
+          <div style={{ height: 6, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${Math.min(100, ((campanha.totalGasto || 0) / campanha.totalVerba) * 100)}%`,
+                borderRadius: 999,
+                background: campanha.totalGasto > campanha.totalVerba ? "var(--danger)" : "var(--success)",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginTop: periodo ? 0 : 10 }}>
         <div style={{ display: "flex", gap: 18 }}>
           <div>

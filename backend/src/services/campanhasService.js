@@ -79,7 +79,7 @@ export async function listCampanhas() {
 //   (evita reconsultar campanha_veiculos aqui).
 // Contagem de veiculos vinculados e de criativos cadastrados por campanha -- usado
 // para enriquecer os cards da Home (evita que o card fique so com nome/status).
-async function contagensPorCampanha(campanhaIds) {
+async function contagensPorCampanha(campanhaIds, user) {
   if (!campanhaIds.length) return new Map();
   const { rows: veiculosRows } = await query(
     `SELECT campanha_id, COUNT(*)::int AS total FROM campanha_veiculos WHERE campanha_id = ANY($1) GROUP BY campanha_id`,
@@ -93,9 +93,45 @@ async function contagensPorCampanha(campanhaIds) {
      GROUP BY cv.campanha_id`,
     [campanhaIds]
   );
-  const mapa = new Map(campanhaIds.map((id) => [id, { totalVeiculos: 0, totalCriativos: 0 }]));
+  // Verba total: soma orcamento_projetado dos criativos marcados como
+  // "Performance" (eh_performance=true) -- unico conceito de orcamento que
+  // existe hoje no sistema, em nivel de criativo. Cobre os dois caminhos de
+  // vinculo com a campanha: pelo campanha_veiculo_id (normal) e pelo nome
+  // textual da campanha (criativos legados sem veiculo vinculado) -- mesmo
+  // fallback usado em listCreativesByCampanha, senao esse total divergiria
+  // do que aparece somado dentro da propria campanha.
+  const { rows: verbaRows } = await query(
+    `SELECT c.id AS campanha_id,
+            COALESCE(SUM(cr.orcamento_projetado) FILTER (
+              WHERE cr.eh_performance = true AND cr.excluido_em IS NULL AND cr.status != 'Rascunho'
+            ), 0) AS total
+     FROM campanhas c
+     LEFT JOIN campanha_veiculos cv ON cv.campanha_id = c.id
+     LEFT JOIN creatives cr ON (cr.campanha_veiculo_id = cv.id OR (cr.campanha_veiculo_id IS NULL AND cr.campanha = c.nome))
+     WHERE c.id = ANY($1)
+     GROUP BY c.id`,
+    [campanhaIds]
+  );
+  const mapa = new Map(campanhaIds.map((id) => [id, { totalVeiculos: 0, totalCriativos: 0, totalVerba: 0, totalGasto: 0 }]));
   for (const r of veiculosRows) mapa.get(r.campanha_id).totalVeiculos = r.total;
   for (const r of criativosRows) mapa.get(r.campanha_id).totalCriativos = r.total;
+  for (const r of verbaRows) mapa.get(r.campanha_id).totalVerba = Number(r.total);
+
+  // Investimento REALIZADO (planilha externa) -- so busca pra campanhas que
+  // de fato tem verba planejada (as demais nunca mostram a barra no card,
+  // ver totalVerba acima), poupando chamadas desnecessarias. Import dinamico
+  // pra evitar ciclo (creativeAnalysisService.js importa deste arquivo).
+  const idsComVerba = campanhaIds.filter((id) => mapa.get(id).totalVerba > 0);
+  if (idsComVerba.length && user) {
+    try {
+      const { getInvestimentoRealizadoPorCampanha } = await import("./creativeAnalysisService.js");
+      const gastos = await getInvestimentoRealizadoPorCampanha(user, idsComVerba);
+      for (const [id, total] of gastos) mapa.get(id).totalGasto = total;
+    } catch (err) {
+      console.error("Falha ao buscar investimento realizado por campanha:", err);
+    }
+  }
+
   return mapa;
 }
 
@@ -120,11 +156,11 @@ export async function listCampanhasHome(user, { busca = "", status = "", page = 
       params
     );
     const total = rows[0] ? Number(rows[0].total_count) : 0;
-    const contagens = await contagensPorCampanha(rows.map((r) => r.id));
+    const contagens = await contagensPorCampanha(rows.map((r) => r.id), user);
     return {
       items: rows.map((r) => {
         const { total_count, ...rest } = r;
-        return { ...toPublicCampanha(rest), ...(contagens.get(r.id) || { totalVeiculos: 0, totalCriativos: 0 }) };
+        return { ...toPublicCampanha(rest), ...(contagens.get(r.id) || { totalVeiculos: 0, totalCriativos: 0, totalVerba: 0, totalGasto: 0 }) };
       }),
       total,
       page,
@@ -156,8 +192,8 @@ export async function listCampanhasHome(user, { busca = "", status = "", page = 
   items.sort((a, b) => a.nome.localeCompare(b.nome));
   const total = items.length;
   items = items.slice(offset, offset + pageSize);
-  const contagens = await contagensPorCampanha(items.map((c) => c.id));
-  items = items.map((c) => ({ ...c, ...(contagens.get(c.id) || { totalVeiculos: 0, totalCriativos: 0 }) }));
+  const contagens = await contagensPorCampanha(items.map((c) => c.id), user);
+  items = items.map((c) => ({ ...c, ...(contagens.get(c.id) || { totalVeiculos: 0, totalCriativos: 0, totalVerba: 0, totalGasto: 0 }) }));
   return { items, total, page, pageSize };
 }
 
@@ -175,8 +211,8 @@ export async function listCampanhasKanban(user) {
       `SELECT * FROM campanhas WHERE status NOT IN ('finalizado', 'cancelado') AND excluido_em IS NULL
        ORDER BY nome ASC LIMIT ${LIMITE_KANBAN}`
     );
-    const contagens = await contagensPorCampanha(rows.map((r) => r.id));
-    return rows.map((r) => ({ ...toPublicCampanha(r), ...(contagens.get(r.id) || { totalVeiculos: 0, totalCriativos: 0 }) }));
+    const contagens = await contagensPorCampanha(rows.map((r) => r.id), user);
+    return rows.map((r) => ({ ...toPublicCampanha(r), ...(contagens.get(r.id) || { totalVeiculos: 0, totalCriativos: 0, totalVerba: 0, totalGasto: 0 }) }));
   }
 
   const escopos = Array.isArray(user.escopos) ? user.escopos : [];
@@ -195,8 +231,8 @@ export async function listCampanhasKanban(user) {
   let items = [...porCampanha.values()].filter((c) => !STATUS_FORA_DO_KANBAN.includes(c.status));
   items.sort((a, b) => a.nome.localeCompare(b.nome));
   items = items.slice(0, LIMITE_KANBAN);
-  const contagens = await contagensPorCampanha(items.map((c) => c.id));
-  return items.map((c) => ({ ...c, ...(contagens.get(c.id) || { totalVeiculos: 0, totalCriativos: 0 }) }));
+  const contagens = await contagensPorCampanha(items.map((c) => c.id), user);
+  return items.map((c) => ({ ...c, ...(contagens.get(c.id) || { totalVeiculos: 0, totalCriativos: 0, totalVerba: 0, totalGasto: 0 }) }));
 }
 
 // Usado internamente por outras operacoes (restaurar, editar, exibir detalhe na

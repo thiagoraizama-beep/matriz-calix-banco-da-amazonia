@@ -521,3 +521,37 @@ export async function getPerformancePorCampanha(user, campanhaId) {
 
   return resultado;
 }
+
+// Investimento REALIZADO total por campanha (soma, sem detalhar por
+// criativo/GA4) -- versao leve de getPerformancePorCampanha, usada pra
+// alimentar a barra "Gasto vs Verba" nos cards da lista de campanhas (Home).
+// So considera criativos "Performance" (eh_performance=true), mesmo
+// universo somado como Planejado (contagensPorCampanha em
+// campanhasService.js) -- senao a comparacao Gasto/Verba nao teria sentido.
+// getRealizadoDetalhadoMulti + cache do sheetsClient.js evitam 1 chamada de
+// planilha por campanha na pagina inteira.
+export async function getInvestimentoRealizadoPorCampanha(user, campanhaIds) {
+  if (!campanhaIds?.length) return new Map();
+
+  const [linhasPlanilha, subcanaisPorPlataforma] = await Promise.all([
+    getRealizadoDetalhadoMulti(campanhaIds),
+    getSubcanaisPorPlataforma(),
+  ]);
+  if (linhasPlanilha.length === 0) return new Map();
+
+  const resultado = new Map(campanhaIds.map((id) => [id, 0]));
+  await Promise.all(
+    campanhaIds.map(async (campanhaId) => {
+      const creatives = (await listCreativesByCampanha(user, campanhaId)).filter(
+        (c) => c.eh_performance && c.orcamento_projetado && c.ad_name
+      );
+      let total = 0;
+      for (const creative of creatives) {
+        const linhas = linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma);
+        total += linhas.reduce((acc, l) => acc + l.investimento, 0);
+      }
+      resultado.set(campanhaId, Number(total.toFixed(2)));
+    })
+  );
+  return resultado;
+}
