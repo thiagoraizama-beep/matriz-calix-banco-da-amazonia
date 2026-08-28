@@ -379,7 +379,7 @@ export default function CreativeFusedDetailModal({
                 || creative.search_campos.texto?.length > 0
                 || creative.search_campos.palavrasChave
               ) && (
-                <Section title="Google Search">
+                <Section title="Rede de pesquisa">
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {creative.search_campos.titulo?.length > 0 && (
                       <Field label="Títulos" value={listaNumerada(creative.search_campos.titulo, "Título")} />
