@@ -106,6 +106,43 @@ function Field({ label, value }) {
   );
 }
 
+// Faixa de destaque no topo da aba Implementacao -- os 3 dados que mais
+// importam de relance (Plataforma, Periodo, Verba), pra nao precisar caçar
+// eles no meio da tabela de baixo.
+function SummaryStrip({ itens }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${itens.length}, 1fr)`, gap: 1, background: "var(--border)", borderRadius: 12, overflow: "hidden" }}>
+      {itens.map((item) => (
+        <div key={item.label} style={{ background: "var(--card-bg)", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{item.label}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: item.accent ? "var(--accent)" : "var(--text-primary)" }}>
+            {item.value || <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>—</span>}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Tabela compacta rotulo/valor -- usada nos grupos abaixo da faixa de
+// destaque, mais densa que a grade de 2 colunas (Field/Section).
+function TableRows({ linhas }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <tbody>
+        {linhas.map((linha) => (
+          <tr key={linha.label} style={{ borderBottom: "1px solid var(--border)" }}>
+            <td style={{ padding: "9px 12px 9px 0", color: "var(--text-secondary)", fontSize: 12, width: "38%", verticalAlign: "top" }}>{linha.label}</td>
+            <td style={{ padding: "9px 0", fontWeight: 500, color: "var(--text-primary)", wordBreak: "break-word", verticalAlign: "top" }}>
+              {linha.value || <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>—</span>}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function KpiCard({ bg, color, value, label }) {
   return (
     <div style={{ background: bg, borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -288,40 +325,44 @@ export default function CreativeFusedDetailModal({
         <div key={aba} style={{ padding: "24px 28px 28px", display: "flex", flexDirection: "column", gap: 24, animation: "creativeTabFadeIn 0.18s ease-out" }}>
           {aba === "implementacao" && (
             <>
-              <Section title="Onde vai rodar">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
-                  <Field label="Campanha" value={creative.campanha} />
-                  <Field label="Veículo" value={creative.veiculo} />
-                  <Field label="Plataforma" value={creative.plataforma} />
-                  <Field label="Formato" value={creative.formato?.join(", ")} />
-                  <Field label="Período de veiculação" value={periodo} />
-                  <Field label="Tipo de publicação" value={creative.impulsionado === false ? "Dark Post" : "Impulsionado"} />
-                </div>
-              </Section>
+              <SummaryStrip
+                itens={[
+                  { label: "Plataforma", value: [creative.plataforma, creative.formato?.join(", ")].filter(Boolean).join(" · ") },
+                  { label: "Período", value: periodo },
+                  {
+                    label: "Verba",
+                    accent: true,
+                    value: creative.eh_performance && creative.orcamento_projetado
+                      ? Number(creative.orcamento_projetado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                      : null,
+                  },
+                ]}
+              />
 
-              <Section title="Compra e verba">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
-                  <Field label="Tipo de compra" value={creative.tipos_compra?.length ? creative.tipos_compra.join(", ") : null} />
-                  {creative.tipos_compra?.includes("CPL") && (
-                    <Field label="Formulário de captura" value={creative.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa"} />
-                  )}
-                  {creative.eh_performance && (
-                    <Field
-                      label="Orçamento projetado"
-                      value={creative.orcamento_projetado ? Number(creative.orcamento_projetado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : null}
-                    />
-                  )}
-                </div>
+              <Section title="Campanha e veículo">
+                <TableRows
+                  linhas={[
+                    { label: "Campanha", value: creative.campanha },
+                    { label: "Veículo", value: creative.veiculo },
+                    { label: "Tipo de compra", value: creative.tipos_compra?.length ? creative.tipos_compra.join(", ") : null },
+                    ...(creative.tipos_compra?.includes("CPL")
+                      ? [{ label: "Formulário de captura", value: creative.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa" }]
+                      : []),
+                    { label: "Publicação", value: creative.impulsionado === false ? "Dark Post" : "Impulsionado" },
+                    { label: "Título", value: creative.titulo },
+                    { label: "Segmentação", value: creative.segmentacao },
+                  ]}
+                />
               </Section>
 
               <Section title="Identificação e tracking">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
-                  <Field label="Título" value={creative.titulo} />
-                  <Field label="Segmentação" value={creative.segmentacao} />
-                  <Field label="Campaign Name" value={creative.campaign_name} />
-                  <Field label="Ad Group" value={creative.conjunto} />
-                  <Field label="Ad Name" value={creative.ad_name} />
-                </div>
+                <TableRows
+                  linhas={[
+                    { label: "Campaign Name", value: creative.campaign_name },
+                    { label: "Ad Group", value: creative.conjunto },
+                    { label: "Ad Name", value: creative.ad_name },
+                  ]}
+                />
               </Section>
 
               {creative.formulario_nativo && creative.observacoes_formulario_nativo && (
