@@ -288,29 +288,39 @@ export default function CreativeFusedDetailModal({
         <div key={aba} style={{ padding: "24px 28px 28px", display: "flex", flexDirection: "column", gap: 24, animation: "creativeTabFadeIn 0.18s ease-out" }}>
           {aba === "implementacao" && (
             <>
-              <Section title="Detalhes">
+              <Section title="Onde vai rodar">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
+                  <Field label="Campanha" value={creative.campanha} />
                   <Field label="Veículo" value={creative.veiculo} />
                   <Field label="Plataforma" value={creative.plataforma} />
-                  <Field label="Campanha" value={creative.campanha} />
                   <Field label="Formato" value={creative.formato?.join(", ")} />
+                  <Field label="Período de veiculação" value={periodo} />
+                  <Field label="Tipo de publicação" value={creative.impulsionado === false ? "Dark Post" : "Impulsionado"} />
+                </div>
+              </Section>
+
+              <Section title="Compra e verba">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
                   <Field label="Tipo de compra" value={creative.tipos_compra?.length ? creative.tipos_compra.join(", ") : null} />
                   {creative.tipos_compra?.includes("CPL") && (
                     <Field label="Formulário de captura" value={creative.formulario_nativo ? "Nativo da plataforma" : "Site/LP externa"} />
                   )}
-                  <Field label="Período de veiculação" value={periodo} />
-                  <Field label="Título" value={creative.titulo} />
-                  <Field label="Segmentação" value={creative.segmentacao} />
-                  <Field label="Campaign Name" value={creative.campaign_name} />
-                  <Field label="Ad Group" value={creative.conjunto} />
-                  <Field label="Ad Name" value={creative.ad_name} />
-                  <Field label="Tipo de publicação" value={creative.impulsionado === false ? "Dark Post" : "Impulsionado"} />
                   {creative.eh_performance && (
                     <Field
                       label="Orçamento projetado"
                       value={creative.orcamento_projetado ? Number(creative.orcamento_projetado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : null}
                     />
                   )}
+                </div>
+              </Section>
+
+              <Section title="Identificação e tracking">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 24px" }}>
+                  <Field label="Título" value={creative.titulo} />
+                  <Field label="Segmentação" value={creative.segmentacao} />
+                  <Field label="Campaign Name" value={creative.campaign_name} />
+                  <Field label="Ad Group" value={creative.conjunto} />
+                  <Field label="Ad Name" value={creative.ad_name} />
                 </div>
               </Section>
 
