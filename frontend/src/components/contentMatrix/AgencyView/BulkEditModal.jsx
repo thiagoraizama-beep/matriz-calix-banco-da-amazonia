@@ -168,57 +168,78 @@ const CAMPOS = [
   { key: "segmentacao", label: "Segmentação", getValor: (c) => c.segmentacao || "" },
   { key: "descricao", label: "Descrição", getValor: (c) => c.descricao || "" },
   { key: "observacoes", label: "Observações", getValor: (c) => c.observacoes || "" },
-  { key: "ehPerformance", label: "Performance", getValor: (c) => (c.eh_performance ? "Sim" : "Não") },
-  { key: "orcamentoProjetado", label: "Orçamento projetado", getValor: (c) => (c.orcamento_projetado ? String(c.orcamento_projetado) : ""), soSe: (c) => c.eh_performance },
+  // Performance e Orcamento projetado ficam no mesmo painel (o orcamento so
+  // faz sentido quando eh_performance = true) -- valor achatado combinado
+  // como "Sim|123.45" ou "Não".
+  { key: "ehPerformance", label: "Performance", getValor: (c) => (c.eh_performance ? `Sim|${c.orcamento_projetado || ""}` : "Não") },
   { key: "nome", label: "Nome", getValor: (c) => c.nome || "", confirmarEmMassa: true },
   { key: "adName", label: "Ad Name", getValor: (c) => c.ad_name || "", confirmarEmMassa: true },
   { key: "posicionamento", label: "Posicionamento", getValor: (c) => c.posicionamento || "" },
-  { key: "linkPostagem", label: "Link da postagem", getValor: (c) => c.link_postagem || "" },
+  { key: "linkPostagem", label: "Link da postagem", getValor: (c) => c.link_postagem || "", soSe: (c) => c.impulsionado },
   { key: "searchTitulos", label: "Títulos (Search)", getValor: (c) => (c.search_campos?.titulo || []).join(" | "), soSe: (c) => c.formato?.includes("Search") },
   { key: "searchTitulosLongos", label: "Títulos longos (Search)", getValor: (c) => (c.search_campos?.tituloLongo || []).join(" | "), soSe: (c) => c.formato?.includes("Search") },
   { key: "searchTextos", label: "Descrições (Search)", getValor: (c) => (c.search_campos?.texto || []).join(" | "), soSe: (c) => c.formato?.includes("Search") },
   { key: "searchPalavrasChave", label: "Palavras-chave (Search)", getValor: (c) => c.search_campos?.palavrasChave || "", soSe: (c) => c.formato?.includes("Search") },
 ];
 
-// Campos cujo valor "achatado" (getValor) precisa ser reconvertido pra um
-// formato diferente antes de ir pro FormData -- os demais campos vao como
-// string simples (o padrao coberto pelo "default" abaixo).
-function valorParaFormData(fd, campoKey, valor) {
-  switch (campoKey) {
-    case "tipoCompra":
-      fd.append("tiposCompra", JSON.stringify(valor ? [valor] : []));
-      break;
-    case "formularioNativo":
-      fd.append("formularioNativo", String(valor === "Nativo da plataforma"));
-      break;
-    case "formato":
-      fd.append("formato", JSON.stringify(valor ? valor.split(", ").filter(Boolean) : []));
-      break;
-    case "impulsionado":
-      fd.append("impulsionado", String(valor === "Impulsionado"));
-      break;
-    case "ehPerformance":
-      fd.append("ehPerformance", String(valor === "Sim"));
-      break;
-    case "orcamentoProjetado":
-      // valor ja vem em reais (nao centavos) do controle de moeda.
-      fd.append("orcamentoProjetado", valor || "0");
-      break;
-    case "searchTitulos":
-      fd.append("searchCampos", JSON.stringify({ titulo: valor ? valor.split(" | ").filter(Boolean) : [] }));
-      break;
-    case "searchTitulosLongos":
-      fd.append("searchCampos", JSON.stringify({ tituloLongo: valor ? valor.split(" | ").filter(Boolean) : [] }));
-      break;
-    case "searchTextos":
-      fd.append("searchCampos", JSON.stringify({ texto: valor ? valor.split(" | ").filter(Boolean) : [] }));
-      break;
-    case "searchPalavrasChave":
-      fd.append("searchCampos", JSON.stringify({ palavrasChave: valor }));
-      break;
-    default:
-      fd.append(campoKey, valor);
+// Os 4 campos de Search escrevem todos na MESMA chave do backend
+// (searchCampos, um objeto so) -- se editados juntos pro mesmo criativo,
+// precisam ser mesclados num unico objeto antes do FormData, senao um
+// sobrescreveria o outro (o backend so le 1 valor de searchCampos).
+const CHAVE_SEARCH_CAMPOS = {
+  searchTitulos: "titulo",
+  searchTitulosLongos: "tituloLongo",
+  searchTextos: "texto",
+  searchPalavrasChave: "palavrasChave",
+};
+
+// Monta o FormData de 1 criativo a partir de {campoKey: valor} -- campos
+// cujo valor "achatado" (getValor) precisa ser reconvertido pra um formato
+// diferente tem tratamento especial; os demais vao como string simples.
+function montarFormDataDoCreative(camposEValores) {
+  const fd = new FormData();
+  const searchCampos = {};
+  let temSearchCampos = false;
+
+  for (const [campoKey, valor] of Object.entries(camposEValores)) {
+    switch (campoKey) {
+      case "tipoCompra":
+        fd.append("tiposCompra", JSON.stringify(valor ? [valor] : []));
+        break;
+      case "formularioNativo":
+        fd.append("formularioNativo", String(valor === "Nativo da plataforma"));
+        break;
+      case "formato":
+        fd.append("formato", JSON.stringify(valor ? valor.split(", ").filter(Boolean) : []));
+        break;
+      case "impulsionado":
+        fd.append("impulsionado", String(valor === "Impulsionado"));
+        break;
+      case "ehPerformance": {
+        // valor vem como "Sim" ou "Sim|123.45" (Sim + orcamento projetado
+        // embutido, ja que os dois campos foram unificados num so painel).
+        const [simNao, orcamento] = String(valor).split("|");
+        fd.append("ehPerformance", String(simNao === "Sim"));
+        if (simNao === "Sim") fd.append("orcamentoProjetado", orcamento || "0");
+        break;
+      }
+      case "searchTitulos":
+      case "searchTitulosLongos":
+      case "searchTextos":
+        searchCampos[CHAVE_SEARCH_CAMPOS[campoKey]] = valor ? valor.split(" | ").filter(Boolean) : [];
+        temSearchCampos = true;
+        break;
+      case "searchPalavrasChave":
+        searchCampos.palavrasChave = valor;
+        temSearchCampos = true;
+        break;
+      default:
+        fd.append(campoKey, valor);
+    }
   }
+
+  if (temSearchCampos) fd.append("searchCampos", JSON.stringify(searchCampos));
+  return fd;
 }
 
 export default function BulkEditModal({ creatives, onClose, onSaved }) {
@@ -250,9 +271,34 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
     getPlataformas().then((rows) => setPlataformasOptions(rows.map((p) => p.nome))).catch(() => {});
   }, []);
 
-  // Campos visiveis no menu -- "soSe" filtra Formulario de captura/Search
-  // pra so aparecer quando fizer sentido pro conjunto selecionado.
-  const camposVisiveis = CAMPOS.filter((c) => !c.soSe || creatives.some(c.soSe));
+  const [buscaCampo, setBuscaCampo] = useState("");
+
+  // Le o valor "efetivo" de um criativo pra um campo: o que foi editado
+  // nesta sessao (tocado), senao o valor original do banco -- assim o
+  // "soSe" (ex: mostrar Formulario de captura so se Tipo de compra = CPL)
+  // reage a mudancas feitas dentro do proprio modal, nao so ao snapshot
+  // de quando o modal abriu.
+  function valorEfetivo(c, campoKey) {
+    if (tocado[campoKey]?.[c.id]) return valores[campoKey][c.id];
+    const campo = CAMPOS.find((cc) => cc.key === campoKey);
+    return campo.getValor(c);
+  }
+  function creativeEfetivo(c) {
+    return {
+      ...c,
+      tipos_compra: tocado.tipoCompra?.[c.id] !== undefined ? [valores.tipoCompra[c.id]].filter(Boolean) : c.tipos_compra,
+      formato: tocado.formato?.[c.id] !== undefined ? valores.formato[c.id].split(", ").filter(Boolean) : c.formato,
+      impulsionado: tocado.impulsionado?.[c.id] !== undefined ? valores.impulsionado[c.id] === "Impulsionado" : c.impulsionado,
+    };
+  }
+
+  // Campos visiveis no menu -- "soSe" filtra Formulario de captura/Search/
+  // Link da postagem pra so aparecer quando fizer sentido pro conjunto
+  // selecionado, considerando tambem edicoes feitas dentro do modal.
+  const camposVisiveis = CAMPOS.filter((c) => !c.soSe || creatives.some((cr) => c.soSe(creativeEfetivo(cr))));
+  const camposFiltrados = buscaCampo.trim()
+    ? camposVisiveis.filter((c) => c.label.toLowerCase().includes(buscaCampo.trim().toLowerCase()))
+    : camposVisiveis;
 
   function valoresDoCampo(campoKey) {
     const campo = CAMPOS.find((c) => c.key === campoKey);
@@ -320,26 +366,34 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
 
     setSaving(true);
     try {
-      const atualizados = [];
+      const atualizados = new Set();
       const falharam = [];
 
-      for (const campoKey of Object.keys(tocado)) {
-        const porId = tocado[campoKey] || {};
-        for (const c of creatives) {
-          if (!porId[c.id]) continue;
-          const valor = valores[campoKey]?.[c.id] ?? "";
-          try {
-            const fd = new FormData();
-            valorParaFormData(fd, campoKey, valor);
-            await updateMatrixCreative(c.id, fd);
-            if (!atualizados.includes(c.id)) atualizados.push(c.id);
-          } catch {
-            if (!falharam.some((f) => f.id === c.id)) falharam.push({ id: c.id, motivo: "Falha ao salvar" });
+      // Agrupa por criativo: se varios campos foram tocados pro mesmo
+      // creativo, manda todos juntos num UNICO PUT (1 FormData com varios
+      // campos) em vez de um PUT por campo por criativo -- e o motivo real
+      // da demora antes (N campos x M criativos = N*M requisicoes
+      // sequenciais). As chamadas entre criativos DIFERENTES rodam em
+      // paralelo (Promise.all).
+      const camposTocados = Object.keys(tocado);
+      await Promise.all(
+        creatives.map(async (c) => {
+          const camposEValores = {};
+          for (const campoKey of camposTocados) {
+            if (!tocado[campoKey]?.[c.id]) continue;
+            camposEValores[campoKey] = valores[campoKey]?.[c.id] ?? "";
           }
-        }
-      }
+          if (Object.keys(camposEValores).length === 0) return;
+          try {
+            await updateMatrixCreative(c.id, montarFormDataDoCreative(camposEValores));
+            atualizados.add(c.id);
+          } catch {
+            falharam.push({ id: c.id, motivo: "Falha ao salvar" });
+          }
+        })
+      );
 
-      setResultado({ atualizados, falharam, operationId: null });
+      setResultado({ atualizados: [...atualizados], falharam, operationId: null });
       if (falharam.length === 0) onSaved();
     } catch (err) {
       setError(err.response?.data?.error || "Falha ao aplicar edição em massa");
@@ -353,6 +407,12 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
   function renderPainelCampo(campoKey) {
     const campo = CAMPOS.find((c) => c.key === campoKey);
     const diverge = divergente(campoKey);
+    // Valor "achatado" pro aviso de divergencia -- ehPerformance combina
+    // Sim/Nao + orcamento numa string interna (Sim|123.45), aqui mostra
+    // so a parte legivel (Sim/Nao).
+    const valoresLegiveis = campoKey === "ehPerformance"
+      ? valoresDoCampo(campoKey).map((v) => v.split("|")[0])
+      : valoresDoCampo(campoKey);
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -360,7 +420,7 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
           <strong style={{ fontSize: 15, fontWeight: 700 }}>{campo.label}</strong>
           {diverge && (
             <p style={{ margin: "3px 0 0", fontSize: 12, color: "var(--warn, #b45309)", fontWeight: 600 }}>
-              Valores diferentes entre os selecionados: {[...new Set(valoresDoCampo(campoKey))].filter(Boolean).join(", ") || "vazio"}
+              Valores diferentes entre os selecionados: {[...new Set(valoresLegiveis)].filter(Boolean).join(", ") || "vazio"}
             </p>
           )}
         </div>
@@ -436,21 +496,30 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
         const [ini = "", fim = ""] = (valor || "").split(" - ");
         return <SimpleDateRangeFields start={ini} end={fim} onChange={(s, en) => onChange(`${s} - ${en}`)} />;
       }
-      case "ehPerformance":
-        return <SimpleSelect value={valor} onChange={onChange} options={["Sim", "Não"]} />;
-      case "orcamentoProjetado": {
-        const centavos = Math.round(Number(valor || 0) * 100);
+      case "ehPerformance": {
+        const [simNao = "Não", orcamento = ""] = String(valor || "Não").split("|");
+        const centavos = Math.round(Number(orcamento || 0) * 100);
         return (
-          <input
-            type="text"
-            inputMode="numeric"
-            value={(centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            onChange={(e) => {
-              const digitos = e.target.value.replace(/\D/g, "");
-              onChange(digitos ? (Number(digitos) / 100).toFixed(2) : "0");
-            }}
-            style={inputStyle}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <SimpleSelect
+              value={simNao}
+              onChange={(v) => onChange(v === "Sim" ? `Sim|${orcamento}` : "Não")}
+              options={["Sim", "Não"]}
+            />
+            {simNao === "Sim" && (
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Orçamento projetado"
+                value={(centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                onChange={(e) => {
+                  const digitos = e.target.value.replace(/\D/g, "");
+                  onChange(`Sim|${digitos ? (Number(digitos) / 100).toFixed(2) : "0"}`);
+                }}
+                style={inputStyle}
+              />
+            )}
+          </div>
         );
       }
       case "segmentacao":
@@ -505,7 +574,17 @@ export default function BulkEditModal({ creatives, onClose, onSaved }) {
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
           <nav style={{ width: 220, flexShrink: 0, borderRight: "1px solid var(--border)", padding: "12px 10px", overflowY: "auto" }}>
-            {camposVisiveis.map((campo) => {
+            <input
+              type="text"
+              value={buscaCampo}
+              onChange={(e) => setBuscaCampo(e.target.value)}
+              placeholder="Buscar campo..."
+              style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5 }}
+            />
+            {camposFiltrados.length === 0 && (
+              <p style={{ fontSize: 12, color: "var(--text-secondary)", padding: "8px 10px" }}>Nenhum campo encontrado.</p>
+            )}
+            {camposFiltrados.map((campo) => {
               const ativo = campoAtivo === campo.key;
               const campoTocado = Object.values(tocado[campo.key] || {}).some(Boolean);
               const diverge = divergente(campo.key);
