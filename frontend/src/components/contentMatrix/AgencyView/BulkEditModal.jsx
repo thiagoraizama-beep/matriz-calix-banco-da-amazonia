@@ -133,6 +133,8 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
   const [observacoes, setObservacoes] = useState("");
   const [ehPerformance, setEhPerformance] = useState(false);
   const [orcamentoCentavos, setOrcamentoCentavos] = useState(0);
+  const [formularioNativo, setFormularioNativo] = useState(false);
+  const [observacoesFormularioNativo, setObservacoesFormularioNativo] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -169,6 +171,10 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
       setError("A data inicial não pode ser depois da data final");
       return;
     }
+    if (aplicar.formularioNativo && formularioNativo && !observacoesFormularioNativo.trim()) {
+      setError("Descreva o formulário nativo");
+      return;
+    }
 
     const patch = {};
     if (aplicar.status) patch.status = status;
@@ -189,6 +195,10 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
     if (aplicar.ehPerformance) {
       patch.ehPerformance = String(ehPerformance);
       if (ehPerformance) patch.orcamentoProjetado = String(orcamentoCentavos / 100);
+    }
+    if (aplicar.formularioNativo) {
+      patch.formularioNativo = String(formularioNativo);
+      patch.observacoesFormularioNativo = formularioNativo ? observacoesFormularioNativo : "";
     }
 
     setSaving(true);
@@ -293,6 +303,44 @@ export default function BulkEditModal({ ids, onClose, onSaved }) {
               ))}
             </select>
           </CampoEmMassa>
+
+          {/* Formulario nativo -- so aparece quando "Tipo de compra" esta marcado
+              pra aplicar E o valor escolhido e CPL (mesma regra do
+              CreativeFormModal.jsx individual, onde so faz sentido pra CPL). */}
+          {aplicar.tipoCompra && tipoCompra === "CPL" && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <CampoEmMassa label="Formulário de captura" aplicar={!!aplicar.formularioNativo} onToggleAplicar={() => toggle("formularioNativo")}>
+                <div style={{ display: "flex", gap: 8, marginBottom: formularioNativo ? 10 : 0 }}>
+                  {[{ label: "Site/LP externa", val: false }, { label: "Nativo da plataforma", val: true }].map(({ label, val }) => {
+                    const sel = formularioNativo === val;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setFormularioNativo(val)}
+                        style={{
+                          flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                          background: sel ? "var(--accent-soft)" : "transparent", color: sel ? "var(--accent)" : "var(--text-secondary)",
+                          fontSize: 13, fontWeight: sel ? 700 : 500, cursor: "pointer",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {formularioNativo && (
+                  <textarea
+                    value={observacoesFormularioNativo}
+                    onChange={(e) => setObservacoesFormularioNativo(e.target.value)}
+                    rows={3}
+                    style={textareaStyle}
+                    placeholder="Descreva os campos coletados, ex: Nome / Telefone / Email"
+                  />
+                )}
+              </CampoEmMassa>
+            </div>
+          )}
 
           <CampoEmMassa label="Formato" aplicar={!!aplicar.formato} onToggleAplicar={() => toggle("formato")}>
             <MultiSearchSelect value={formato} onChange={handleFormatoChange} options={TODOS_FORMATOS} placeholder="Buscar formato: Search, Stories, Reels..." />
