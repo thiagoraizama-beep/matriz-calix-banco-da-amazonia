@@ -590,7 +590,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   );
 
   const verbaTotalBadge = creatives && verbaPlanejada > 0 && (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 14px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content", flexShrink: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 16, minHeight: 36, padding: "0 16px", borderRadius: 999, background: "var(--card-bg)", border: "1px solid var(--border)", width: "fit-content", flexShrink: 0, boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
           {verbaPlanejada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
