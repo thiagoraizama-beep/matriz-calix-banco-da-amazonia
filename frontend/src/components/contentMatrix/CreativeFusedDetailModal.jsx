@@ -217,18 +217,21 @@ export default function CreativeFusedDetailModal({
   }, [temNavegacao, indiceAtual, listaNavegacao]);
 
   // Seção de Performance so e ocultada por completo quando o vinculo nao tem a
-  // permissao (acesso_analise_criativo) -- sem ad_name ou sem match ainda, a aba
-  // continua visivel com uma mensagem explicando o motivo, em vez de sumir sem aviso.
+  // permissao (acesso_analise_criativo) -- sem ad_name/conjunto ou sem match
+  // ainda, a aba continua visivel com uma mensagem explicando o motivo, em vez
+  // de sumir sem aviso. Ad Group (conjunto) tambem habilita a busca -- ver
+  // fallback de match em creativeMatch.js (plataformas como Google Performance
+  // Max/Search nao tem Ad Name individual, so Ad Group).
   const temPermissaoAnalise = creative.acesso_analise_criativo === true;
-  const temAdName = Boolean(creative.ad_name);
+  const temIdentificador = Boolean(creative.ad_name || creative.conjunto);
   const [performance, setPerformance] = useState(undefined); // undefined=nao carregado ainda, null=sem dado
 
   useEffect(() => {
-    if (aba !== "performance" || !temPermissaoAnalise || !temAdName || performance !== undefined) return;
+    if (aba !== "performance" || !temPermissaoAnalise || !temIdentificador || performance !== undefined) return;
     getPerformancePorCampanha(campanhaId)
       .then((mapa) => setPerformance(mapa[creative.id] || null))
       .catch(() => setPerformance(null));
-  }, [aba, campanhaId, creative.id, temPermissaoAnalise, temAdName, performance]);
+  }, [aba, campanhaId, creative.id, temPermissaoAnalise, temIdentificador, performance]);
 
   function handleCopy(campo, valor) {
     if (!valor) return;
@@ -461,15 +464,15 @@ export default function CreativeFusedDetailModal({
                 <div style={{ background: "var(--bg)", borderRadius: 12, padding: "24px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: 13 }}>
                   Este vínculo não tem acesso à Análise por Criativo para esta plataforma.
                 </div>
-              ) : !temAdName ? (
+              ) : !temIdentificador ? (
                 <div style={{ background: "var(--bg)", borderRadius: 12, padding: "24px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: 13 }}>
-                  Este criativo não tem Ad Name cadastrado. Edite-o e informe o Ad Name (deve bater exatamente com o nome usado na planilha de Realizado) para ver os dados de performance.
+                  Este criativo não tem Ad Name nem Ad Group cadastrado. Edite-o e informe pelo menos um dos dois (deve bater exatamente com o nome usado na planilha de Realizado) para ver os dados de performance.
                 </div>
               ) : performance === undefined ? (
                 <div style={{ padding: "40px 0" }}><Spinner /></div>
               ) : !performance ? (
                 <div style={{ background: "var(--bg)", borderRadius: 12, padding: "24px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: 13 }}>
-                  Nenhum dado de performance encontrado ainda para o Ad Name "{creative.ad_name}". Verifique se o nome bate exatamente com a planilha, ou aguarde a próxima sincronização.
+                  Nenhum dado de performance encontrado ainda para {creative.ad_name ? `o Ad Name "${creative.ad_name}"` : `o Ad Group "${creative.conjunto}"`}. Verifique se o nome bate exatamente com a planilha, ou aguarde a próxima sincronização.
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
