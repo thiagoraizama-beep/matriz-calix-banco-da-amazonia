@@ -480,6 +480,13 @@ export async function getPerformancePorCampanha(user, campanhaId) {
   await Promise.all(
     creatives.map(async (creative) => {
       const linhas = linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma);
+      // DEBUG TEMPORARIO -- remover apos diagnosticar o card PMax zerado em producao.
+      console.log("[DEBUG linhasCasadas]", JSON.stringify({
+        creativeId: creative.id, nome: creative.nome, adName: creative.ad_name, conjunto: creative.conjunto,
+        plataforma: creative.plataforma, campanha: creative.campanha, campaignName: creative.campaign_name,
+        veiculo: creative.veiculo, tiposCompra: creative.tipos_compra, ehPerformance: creative.eh_performance,
+        totalLinhasPlanilha: linhasPlanilha.length, linhasCasadasCount: linhas.length,
+      }));
       const investimento = linhas.reduce((acc, l) => acc + l.investimento, 0);
       const impressoes = linhas.reduce((acc, l) => acc + l.impressoes, 0);
       const cliques = linhas.reduce((acc, l) => acc + l.cliques, 0);
