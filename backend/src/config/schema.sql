@@ -302,6 +302,11 @@ ALTER TABLE campanha_sheets ADD COLUMN IF NOT EXISTS col_leads TEXT;
 -- utilizavel (ex: Google Performance Max/Search, onde o anuncio nao tem
 -- nome individual estavel) -- ver linhasCasadas em utils/creativeMatch.js.
 ALTER TABLE campanha_sheets ADD COLUMN IF NOT EXISTS col_ad_group TEXT;
+-- Campaign Name: coluna separada de col_campanha -- a planilha pode trazer
+-- o nome curto da campanha (col_campanha) OU o Campaign Name completo
+-- usado no Google/Meta Ads (ex: "2026_CAMPANHA_CONVERSAO_X"), as vezes os
+-- dois em colunas diferentes. linhasCasadas aceita bater com qualquer um.
+ALTER TABLE campanha_sheets ADD COLUMN IF NOT EXISTS col_campaign_name TEXT;
 
 -- Direcao INVERSA de campanha_sheets acima: aqui o sistema ESCREVE os
 -- criativos da campanha numa planilha do Google Sheets (nao le performance

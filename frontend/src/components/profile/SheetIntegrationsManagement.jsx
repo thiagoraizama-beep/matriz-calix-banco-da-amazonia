@@ -18,27 +18,53 @@ function CopyIcon() {
 // sao os campos minimos para qualquer leitura de Analise por Criativo fazer
 // sentido (data, plataforma, investimento, impressoes, cliques). Os demais sao
 // opcionais porque nem toda planilha tem, por exemplo, dados de video.
-const CAMPOS_MAPEAMENTO = [
-  { key: "data", label: "Data", obrigatorio: true },
-  { key: "plataforma", label: "Plataforma", obrigatorio: true },
-  { key: "investimento", label: "Investimento (Custo)", obrigatorio: true },
-  { key: "impressoes", label: "Impressões", obrigatorio: true },
-  { key: "cliques", label: "Cliques", obrigatorio: true },
-  { key: "campanha", label: "Campanha" },
-  { key: "vendedor", label: "Veículo (vendor)" },
-  { key: "adName", label: "Ad Name" },
-  { key: "adGroup", label: "Ad Group (fallback quando não há Ad Name, ex: Google Performance Max)" },
-  { key: "leads", label: "Leads" },
-  { key: "imagemCriativo", label: "Imagem do Criativo" },
-  { key: "tipoCompra", label: "Tipo de Compra" },
-  { key: "posicionamento", label: "Posicionamento" },
-  { key: "videoViews", label: "Video Views" },
-  { key: "videoViews25", label: "Video Views 25%" },
-  { key: "videoViews50", label: "Video Views 50%" },
-  { key: "videoViews75", label: "Video Views 75%" },
-  { key: "videoCompletions", label: "Video Completions" },
-  { key: "engajamentos", label: "Total Engagements" },
+// "dica" (quando presente) vira o title/tooltip do label -- mantem o texto
+// visivel curto, sem quebrar a grade, com a explicacao completa disponivel
+// ao passar o mouse. Agrupados em secoes pra nao virar uma grade unica de
+// 20 campos sem nenhuma hierarquia.
+const GRUPOS_MAPEAMENTO = [
+  {
+    titulo: "Métricas básicas",
+    campos: [
+      { key: "data", label: "Data", obrigatorio: true },
+      { key: "plataforma", label: "Plataforma", obrigatorio: true },
+      { key: "investimento", label: "Investimento (Custo)", obrigatorio: true },
+      { key: "impressoes", label: "Impressões", obrigatorio: true },
+      { key: "cliques", label: "Cliques", obrigatorio: true },
+      { key: "leads", label: "Leads" },
+    ],
+  },
+  {
+    titulo: "Identificação do anúncio",
+    campos: [
+      { key: "adName", label: "Ad Name", dica: "Nome individual do anúncio, quando a plataforma fornece (ex: Meta, TikTok)." },
+      { key: "adGroup", label: "Ad Group", dica: "Fallback quando não há Ad Name -- ex: Google Performance Max/Search, que não tem nome de anúncio individual." },
+      { key: "campanha", label: "Campanha", dica: "Nome curto da campanha no sistema, ex: \"Capital de Giro - Etapa 2\"." },
+      { key: "campaignName", label: "Campaign Name", dica: "Nome usado no Google/Meta Ads, ex: \"2026_CAMPANHA_CONVERSAO_X\" -- diferente do nome curto da Campanha." },
+      { key: "vendedor", label: "Veículo (vendor)" },
+    ],
+  },
+  {
+    titulo: "Detalhes do criativo",
+    campos: [
+      { key: "imagemCriativo", label: "Imagem do Criativo" },
+      { key: "tipoCompra", label: "Tipo de Compra" },
+      { key: "posicionamento", label: "Posicionamento" },
+    ],
+  },
+  {
+    titulo: "Métricas de vídeo",
+    campos: [
+      { key: "videoViews", label: "Video Views" },
+      { key: "videoViews25", label: "Video Views 25%" },
+      { key: "videoViews50", label: "Video Views 50%" },
+      { key: "videoViews75", label: "Video Views 75%" },
+      { key: "videoCompletions", label: "Video Completions" },
+      { key: "engajamentos", label: "Total Engagements" },
+    ],
+  },
 ];
+const CAMPOS_MAPEAMENTO = GRUPOS_MAPEAMENTO.flatMap((g) => g.campos);
 
 
 // O usuario so precisa digitar o NOME da aba (ex: "Consolidada") -- a notacao
@@ -58,6 +84,7 @@ function mappingVazio(config) {
   return {
     data: config.col_data || "",
     campanha: config.col_campanha || "",
+    campaignName: config.col_campaign_name || "",
     plataforma: config.col_plataforma || "",
     vendedor: config.col_vendedor || "",
     adName: config.col_ad_name || "",
@@ -306,19 +333,31 @@ export default function SheetIntegrationsManagement() {
                   )}
 
                   {headers && (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
-                      {CAMPOS_MAPEAMENTO.map((campo) => (
-                        <div key={campo.key}>
-                          <label style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 3 }}>
-                            {campo.label}{campo.obrigatorio ? " *" : ""}
-                          </label>
-                          <MultiSelectDropdown
-                            value={mapping[campo.key] || null}
-                            onChange={(v) => setMapping((prev) => ({ ...prev, [campo.key]: v || "" }))}
-                            options={headers.filter((h) => h === mapping[campo.key] || !Object.values(mapping).includes(h))}
-                            placeholder="Nenhuma"
-                            compact
-                          />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                      {GRUPOS_MAPEAMENTO.map((grupo) => (
+                        <div key={grupo.titulo}>
+                          <p style={{ margin: "0 0 8px", fontSize: 10.5, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            {grupo.titulo}
+                          </p>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                            {grupo.campos.map((campo) => (
+                              <div key={campo.key}>
+                                <label
+                                  title={campo.dica}
+                                  style={{ fontSize: 11, color: "var(--text-secondary)", display: "block", marginBottom: 3, cursor: campo.dica ? "help" : "default" }}
+                                >
+                                  {campo.label}{campo.obrigatorio ? " *" : ""}{campo.dica ? " ⓘ" : ""}
+                                </label>
+                                <MultiSelectDropdown
+                                  value={mapping[campo.key] || null}
+                                  onChange={(v) => setMapping((prev) => ({ ...prev, [campo.key]: v || "" }))}
+                                  options={headers.filter((h) => h === mapping[campo.key] || !Object.values(mapping).includes(h))}
+                                  placeholder="Nenhuma"
+                                  compact
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>

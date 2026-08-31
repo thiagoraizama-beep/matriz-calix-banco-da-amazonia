@@ -88,6 +88,7 @@ function normalizeCriativoRow(row, config) {
   return {
     data: parseBRDate(col(row, config.col_data)),
     campanha: col(row, config.col_campanha),
+    campaignName: col(row, config.col_campaign_name),
     veiculo: col(row, config.col_plataforma),
     plataforma: col(row, config.col_plataforma),
     vendedor: col(row, config.col_vendedor),
