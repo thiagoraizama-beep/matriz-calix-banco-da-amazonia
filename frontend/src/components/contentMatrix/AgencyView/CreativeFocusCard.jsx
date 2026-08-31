@@ -37,7 +37,7 @@ const METRICAS_ZERADAS = { investimento: 0, ctr: 0, impressoes: 0, cliques: 0 };
 // rodape (em vez do menu discreto de "..." no topo, que faz sentido numa
 // grade densa mas nao aqui, onde ha espaco de sobra e so 1 criativo por vez).
 export default function CreativeFocusCard({
-  creative, onEdit, onDuplicate, onDelete, canEdit,
+  creative, onOpenDetail, onEdit, onDuplicate, onDelete, canEdit,
   statusOptions, onStatusChange, updatingStatus, performance,
 }) {
   const [statusAnchor, setStatusAnchor] = useState(null);
@@ -60,7 +60,10 @@ export default function CreativeFocusCard({
 
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ position: "relative", height: 340, background: "var(--bg)" }}>
+      <div
+        onClick={() => onOpenDetail?.(creative)}
+        style={{ position: "relative", height: 340, background: "var(--bg)", cursor: onOpenDetail ? "pointer" : "default" }}
+      >
         {creative.formato?.includes("Search") ? (
           <KeywordCloud palavrasChave={creative.search_campos?.palavrasChave} />
         ) : (
@@ -69,7 +72,12 @@ export default function CreativeFocusCard({
       </div>
 
       <div style={{ padding: "14px 16px 16px" }}>
-        <strong style={{ fontSize: 15, fontWeight: 700, display: "block" }}>{creative.nome}</strong>
+        <strong
+          onClick={() => onOpenDetail?.(creative)}
+          style={{ fontSize: 15, fontWeight: 700, display: "block", cursor: onOpenDetail ? "pointer" : "default" }}
+        >
+          {creative.nome}
+        </strong>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, marginBottom: 12 }}>
           <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{creative.plataforma || creative.veiculo}</span>
           <span style={{ color: "var(--border)" }}>·</span>
@@ -142,7 +150,7 @@ export default function CreativeFocusCard({
           creative={creative}
           anchorRect={menuAnchor}
           canEdit={canEdit}
-          onOpenDetail={() => {}}
+          onOpenDetail={onOpenDetail || (() => {})}
           onEdit={onEdit}
           onDuplicate={onDuplicate}
           onDelete={onDelete}

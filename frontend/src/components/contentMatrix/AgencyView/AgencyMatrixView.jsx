@@ -24,6 +24,7 @@ import TrashIcon from "../../common/TrashIcon.jsx";
 import { isUrgente } from "../../../utils/urgencia.js";
 import MatrixSidebarFilters from "./MatrixSidebarFilters.jsx";
 import CreativeFocusCard from "./CreativeFocusCard.jsx";
+import { TOPNAV_HEIGHT } from "../../layout/TopNav.jsx";
 
 function WarningIcon() {
   return (
@@ -617,16 +618,15 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const focoAtivo = modoCards === "foco" && filteredOrdenado.find((c) => c.id === focoCreativeId);
 
   const viewToggle = campanhaId && filteredOrdenado.length > 0 && (
-    <div style={{ display: "flex", background: "var(--bg)", borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
+    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
       <button
         type="button"
         onClick={() => setModoCards("grade")}
         style={{
-          display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-          background: modoCards === "grade" ? "var(--card-bg)" : "transparent",
-          color: modoCards === "grade" ? "var(--text-primary)" : "var(--text-secondary)",
+          display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer",
+          background: modoCards === "grade" ? "var(--accent)" : "var(--bg)",
+          color: modoCards === "grade" ? "#fff" : "var(--text-secondary)",
           fontWeight: 600, fontSize: 12,
-          boxShadow: modoCards === "grade" ? "0 1px 3px rgba(10,16,32,0.1)" : "none",
         }}
       >
         <GridIcon /> Grade
@@ -638,11 +638,10 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
           setModoCards("foco");
         }}
         style={{
-          display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-          background: modoCards === "foco" ? "var(--card-bg)" : "transparent",
-          color: modoCards === "foco" ? "var(--text-primary)" : "var(--text-secondary)",
+          display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer",
+          background: modoCards === "foco" ? "var(--accent)" : "var(--bg)",
+          color: modoCards === "foco" ? "#fff" : "var(--text-secondary)",
           fontWeight: 600, fontSize: 12,
-          boxShadow: modoCards === "foco" ? "0 1px 3px rgba(10,16,32,0.1)" : "none",
         }}
       >
         <FocusIcon /> Foco
@@ -661,10 +660,14 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
 
       {focoAtivo ? (
         <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 18, alignItems: "start" }}>
-          <div style={{ width: 360 }}>
+          {/* sticky: o card grande do Foco fica fixo na tela enquanto a lista de
+              navegacao ao lado rola -- sem isso, rolar pra ver mais criativos na
+              lista fazia o card sumir junto (ele nao e mais alto que a lista). */}
+          <div style={{ width: 360, position: "sticky", top: TOPNAV_HEIGHT + 16 }}>
             <CreativeFocusCard
               key={focoAtivo.id}
               creative={focoAtivo}
+              onOpenDetail={setViewing}
               onEdit={openEdit}
               onDuplicate={openDuplicate}
               onDelete={setDeleting}
@@ -676,35 +679,50 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
             />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {filteredOrdenado.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => setFocoCreativeId(c.id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
-                  background: c.id === focoAtivo.id ? "var(--accent-soft)" : "var(--card-bg)",
-                  border: `1px solid ${c.id === focoAtivo.id ? "var(--accent)" : "var(--border)"}`,
-                  borderRadius: 10, padding: "7px 10px",
-                }}
-              >
-                <div style={{ width: 34, height: 34, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: "var(--bg)" }}>
-                  {c.cloudinary_url && (
-                    c.tipo_midia === "video" ? (
-                      <video src={c.cloudinary_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <img src={c.cloudinary_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    )
-                  )}
+            {/* Mesma logica de agrupamento por plataforma da grade -- sem isso a
+                lista de navegacao do Foco misturava Meta/Google sem separacao,
+                mesmo com a grade ja resolvendo isso. */}
+            {gruposPlataforma.map(([nomePlataforma, itens]) => (
+              <div key={nomePlataforma || "sem-plataforma"}>
+                {!plataformaAtiva && nomePlataforma && (
+                  <p style={{ margin: "10px 0 6px", fontSize: 10.5, fontWeight: 700, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)" }} />
+                    {nomePlataforma}
+                  </p>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {itens.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => setFocoCreativeId(c.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                        background: c.id === focoAtivo.id ? "var(--accent-soft)" : "var(--card-bg)",
+                        border: `1px solid ${c.id === focoAtivo.id ? "var(--accent)" : "var(--border)"}`,
+                        borderRadius: 10, padding: "7px 10px",
+                      }}
+                    >
+                      <div style={{ width: 34, height: 34, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: "var(--bg)" }}>
+                        {c.cloudinary_url && (
+                          c.tipo_midia === "video" ? (
+                            <video src={c.cloudinary_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <img src={c.cloudinary_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          )
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <strong style={{ display: "block", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nome}</strong>
+                        <span style={{ fontSize: 10.5, color: "var(--text-secondary)" }}>{c.plataforma || c.veiculo}</span>
+                      </div>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: performanceMap[c.id]?.investimento ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                        {performanceMap[c.id]?.investimento
+                          ? Number(performanceMap[c.id].investimento).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                          : "—"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong style={{ display: "block", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nome}</strong>
-                  <span style={{ fontSize: 10.5, color: "var(--text-secondary)" }}>{c.plataforma || c.veiculo}</span>
-                </div>
-                <span style={{ fontSize: 11.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: performanceMap[c.id]?.investimento ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                  {performanceMap[c.id]?.investimento
-                    ? Number(performanceMap[c.id].investimento).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                    : "—"}
-                </span>
               </div>
             ))}
           </div>
@@ -769,6 +787,41 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       {gridConteudo}
     </div>
   ) : gridConteudo;
+
+  // Mobile: card vertical simples de sempre, sem sidebar/agrupamento por
+  // plataforma/toggle Grade-Foco -- esses 3 sao pensados pra tela larga (o
+  // MatrixMobileHeader ja cobre status/plataforma/verba a parte). Usa
+  // filteredOrdenado direto, igual o "grid" fazia antes desta reestruturacao.
+  const gridMobile = !creatives ? <Spinner /> : (
+    <>
+      <CreativeCardGrid>
+        {filteredOrdenado.map((c) => (
+          <CreativeGridCard
+            key={c.id}
+            creative={c}
+            urgente={isUrgente(c.periodo_inicio)}
+            onOpenDetail={setViewing}
+            onEdit={openEdit}
+            onDuplicate={openDuplicate}
+            onDelete={setDeleting}
+            canEdit
+            statusOptions={STATUS_OPTIONS_AGENCIA}
+            onStatusChange={handleStatusChange}
+            updatingStatus={updatingId === c.id}
+            performance={performanceMap[c.id]}
+            selectable={comparando || editandoEmMassa}
+            selected={selecionados.includes(c.id)}
+            onToggleSelect={toggleSelect}
+          />
+        ))}
+      </CreativeCardGrid>
+      {filtered.length === 0 && (
+        <div className="card" style={{ textAlign: "center", color: "var(--text-secondary)", marginTop: 12 }}>
+          {creatives.length === 0 ? "Nenhum criativo cadastrado ainda" : "Nenhum criativo encontrado para os filtros selecionados"}
+        </div>
+      )}
+    </>
+  );
 
   // Kanban usa os mesmos status permitidos ao papel do usuario (veiculo tem
   // um subconjunto) -- arrastar para uma coluna fora desse conjunto nunca
@@ -1003,7 +1056,7 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
         {syncFeedback}
         {urgenciaBanner}
         {statusGrid}
-        {visualizacao === "kanban" ? kanbanBoard : grid}
+        {visualizacao === "kanban" ? kanbanBoard : gridMobile}
         {modals}
       </div>
     );

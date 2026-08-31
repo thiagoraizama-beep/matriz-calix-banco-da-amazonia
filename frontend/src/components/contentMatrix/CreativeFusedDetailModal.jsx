@@ -164,11 +164,24 @@ function TableRows({ linhas }) {
   );
 }
 
-function KpiCard({ bg, color, value, label }) {
+// Linha rotulo/valor da aba Performance -- "destaque" e usado 1x por coluna
+// (Investimento em Verba, Leads/Cliques em Resultado), o resto fica no
+// tamanho normal; "apagado" cobre valores informativos tipo "Sem URL de
+// destino", que nao sao numeros reais.
+function MetricaLinha({ label, value, destaque, apagado }) {
   return (
-    <div style={{ background: bg, borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-      <strong style={{ fontSize: 19, color, lineHeight: 1.1 }}>{value}</strong>
-      <p style={{ margin: 0, fontSize: 11.5, color: "var(--text-secondary)", fontWeight: 600 }}>{label}</p>
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: destaque ? "0 0 4px" : "6px 0", gap: 10 }}>
+      <span style={{ fontSize: destaque ? 13 : 12, fontWeight: destaque ? 700 : 400, color: destaque ? "var(--text-primary)" : "var(--text-secondary)" }}>
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: destaque ? 20 : 13.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", textAlign: "right",
+          color: apagado ? "var(--text-secondary)" : destaque ? "var(--accent)" : "var(--text-primary)",
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -474,89 +487,88 @@ export default function CreativeFusedDetailModal({
                 <div style={{ background: "var(--bg)", borderRadius: 12, padding: "24px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: 13 }}>
                   Nenhum dado de performance encontrado ainda para {creative.ad_name ? `o Ad Name "${creative.ad_name}"` : `o Ad Group "${creative.conjunto}"`}. Verifique se o nome bate exatamente com a planilha, ou aguarde a próxima sincronização.
                 </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-                    <KpiCard bg="#eef3ea" color="#2E7D32" value={`R$ ${performance.investimento.toLocaleString("pt-BR")}`} label="Investimento" />
-                    <KpiCard bg="var(--accent-soft)" color="var(--accent)" value={formatCompact(performance.impressoes)} label="Impressões" />
-                    <KpiCard bg="#e8f2ec" color="#0B6E4F" value={formatCompact(performance.cliques)} label="Cliques" />
-                    <KpiCard bg="#eef3ea" color="#2E7D32" value={`${performance.ctr}%`} label="CTR" />
-                  </div>
+              ) : (() => {
+                // Metricas de custo/leads variam conforme o modelo de compra do
+                // criativo -- CPM so mostra custo por mil, CPC mostra CPC+CPM,
+                // CPL mostra Leads+Custo por Lead+CPC+CPM (os demais modelos de
+                // compra, como CPV/CPE/CPT/CPF/CPA, nao tem regra especifica
+                // ainda, entao nao exibem nenhuma dessas metricas extras).
+                const modelo = (creative.tipos_compra || [])[0];
+                const mostrarCpm = modelo === "CPM" || modelo === "CPC" || modelo === "CPL";
+                const mostrarCpc = modelo === "CPC" || modelo === "CPL";
+                const mostrarLeads = modelo === "CPL";
+                const mostrarCpl = modelo === "CPL";
 
-                  {creative.eh_performance && creative.orcamento_projetado > 0 && (
-                    <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={performance.investimento} />
-                  )}
-
-                  {/* Metricas de custo/leads variam conforme o modelo de compra do
-                      criativo -- CPM so mostra custo por mil, CPC mostra CPC+CPM,
-                      CPL mostra Leads+Custo por Lead+CPC+CPM (os demais modelos de
-                      compra, como CPV/CPE/CPT/CPF/CPA, nao tem regra especifica
-                      ainda, entao nao exibem nenhuma dessas metricas extras). */}
-                  {(() => {
-                    const modelo = (creative.tipos_compra || [])[0];
-                    const mostrarCpm = modelo === "CPM" || modelo === "CPC" || modelo === "CPL";
-                    const mostrarCpc = modelo === "CPC" || modelo === "CPL";
-                    const mostrarLeads = modelo === "CPL";
-                    const mostrarCpl = modelo === "CPL";
-                    if (!mostrarCpm && !mostrarCpc && !mostrarLeads) return null;
-                    const cols = [mostrarLeads, mostrarCpl, mostrarCpc, mostrarCpm].filter(Boolean).length;
-                    return (
-                      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }}>
-                        {mostrarLeads && (
-                          <KpiCard
-                            bg="#e6efe9"
-                            color="#00695C"
-                            value={performance.leads === null ? (creative.url_destino ? "Não configurado" : "Sem URL de destino") : formatCompact(performance.leads)}
-                            label="Leads"
-                          />
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    {/* Duas colunas: "Verba" (o que foi gasto -- Investimento em
+                        destaque, Orcamento com barra, CPC/CPM) e "Resultado" (o
+                        que voltou -- Cliques/CTR/Leads/Custo por Lead/Sessoes),
+                        pra separar visualmente "quanto gastei" de "o que voltou"
+                        em vez de uma grade unica misturando as duas perguntas. */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      <div style={{ background: "var(--bg)", borderRadius: 12, padding: 16 }}>
+                        <p style={{ margin: "0 0 10px", fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          Verba
+                        </p>
+                        <MetricaLinha label="Investimento" value={`R$ ${performance.investimento.toLocaleString("pt-BR")}`} destaque />
+                        {creative.eh_performance && creative.orcamento_projetado > 0 && (
+                          <div style={{ marginTop: 8 }}>
+                            <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={performance.investimento} />
+                          </div>
                         )}
+                        {mostrarCpc && <MetricaLinha label="CPC" value={`R$ ${performance.cpc.toLocaleString("pt-BR")}`} />}
+                        {mostrarCpm && <MetricaLinha label="CPM" value={`R$ ${performance.cpm.toLocaleString("pt-BR")}`} />}
                         {mostrarCpl && (
-                          <KpiCard
-                            bg="#e6efe9"
-                            color="#00695C"
-                            value={!performance.leads ? "—" : `R$ ${performance.cpl.toLocaleString("pt-BR")}`}
-                            label="Custo por Lead"
-                          />
+                          <MetricaLinha label="Custo por Lead" value={!performance.leads ? "—" : `R$ ${performance.cpl.toLocaleString("pt-BR")}`} />
                         )}
-                        {mostrarCpc && (
-                          <KpiCard bg="#f0f2ea" color="#4E6B4A" value={`R$ ${performance.cpc.toLocaleString("pt-BR")}`} label="CPC" />
-                        )}
-                        {mostrarCpm && (
-                          <KpiCard bg="var(--accent-soft)" color="var(--accent)" value={`R$ ${performance.cpm.toLocaleString("pt-BR")}`} label="CPM" />
+                        {performance.sessoes !== null && (
+                          <MetricaLinha label="Custo por Sessão" value={`R$ ${performance.cps.toLocaleString("pt-BR")}`} />
                         )}
                       </div>
-                    );
-                  })()}
 
-                  <div style={{ display: "grid", gridTemplateColumns: performance.sessoes !== null ? "1fr 1fr 1fr" : "1fr", gap: 12 }}>
-                    <KpiCard
-                      bg="#e8f2ec"
-                      color="#0B6E4F"
-                      value={
-                        performance.sessoes !== null
-                          ? formatCompact(performance.sessoes)
-                          : creative.url_destino
-                          ? "Sem GA4 vinculado"
-                          : "Sem URL de destino"
-                      }
-                      label="Sessões"
+                      <div style={{ background: "var(--bg)", borderRadius: 12, padding: 16 }}>
+                        <p style={{ margin: "0 0 10px", fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          Resultado
+                        </p>
+                        <MetricaLinha
+                          label={mostrarLeads ? "Leads" : "Cliques"}
+                          value={
+                            mostrarLeads
+                              ? (performance.leads === null ? (creative.url_destino ? "Não configurado" : "Sem URL de destino") : formatCompact(performance.leads))
+                              : formatCompact(performance.cliques)
+                          }
+                          destaque
+                        />
+                        {mostrarLeads && <MetricaLinha label="Cliques" value={formatCompact(performance.cliques)} />}
+                        <MetricaLinha label="CTR" value={`${performance.ctr}%`} />
+                        <MetricaLinha label="Impressões" value={formatCompact(performance.impressoes)} />
+                        <MetricaLinha
+                          label="Sessões"
+                          value={
+                            performance.sessoes !== null
+                              ? formatCompact(performance.sessoes)
+                              : creative.url_destino
+                              ? "Sem GA4 vinculado"
+                              : "Sem URL de destino"
+                          }
+                          apagado={performance.sessoes === null}
+                        />
+                        {performance.duracaoMediaSessao !== null && (
+                          <MetricaLinha label="Tempo Médio de Sessão" value={formatDuracao(performance.duracaoMediaSessao)} />
+                        )}
+                      </div>
+                    </div>
+
+                    <CreativeEvolutionChart
+                      campanhaId={campanhaId}
+                      veiculo={creative.plataforma}
+                      adName={creative.ad_name}
+                      filters={EMPTY_FILTERS}
                     />
-                    {performance.sessoes !== null && (
-                      <KpiCard bg="#e8f2ec" color="#0B6E4F" value={`R$ ${performance.cps.toLocaleString("pt-BR")}`} label="Custo por Sessão" />
-                    )}
-                    {performance.duracaoMediaSessao !== null && (
-                      <KpiCard bg="#e8f2ec" color="#0B6E4F" value={formatDuracao(performance.duracaoMediaSessao)} label="Tempo Médio de Sessão" />
-                    )}
                   </div>
-
-                  <CreativeEvolutionChart
-                    campanhaId={campanhaId}
-                    veiculo={creative.plataforma}
-                    adName={creative.ad_name}
-                    filters={EMPTY_FILTERS}
-                  />
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
