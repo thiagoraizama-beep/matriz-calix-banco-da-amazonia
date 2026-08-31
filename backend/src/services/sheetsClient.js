@@ -88,6 +88,7 @@ function normalizeCriativoRow(row, config) {
     plataforma: col(row, config.col_plataforma),
     vendedor: col(row, config.col_vendedor),
     adName: col(row, config.col_ad_name),
+    adGroup: col(row, config.col_ad_group),
     nomeCriativo: col(row, config.col_nome_criativo),
     imagemCriativo: normalizeImageUrl(col(row, config.col_imagem_criativo)),
     tipoCompra: col(row, config.col_tipo_compra),

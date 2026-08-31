@@ -342,7 +342,7 @@ export async function getCampanhaSheetConfig(campanhaId) {
 // (ficam null), ja que a tela sempre reenvia o mapeamento inteiro.
 export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, mapping }) {
   const {
-    data, campanha, plataforma, vendedor, adName, nomeCriativo, imagemCriativo,
+    data, campanha, plataforma, vendedor, adName, adGroup, nomeCriativo, imagemCriativo,
     tipoCompra, posicionamento, investimento, impressoes, cliques,
     videoViews, videoViews25, videoViews50, videoViews75, videoCompletions, engajamentos, leads,
   } = mapping || {};
@@ -350,12 +350,12 @@ export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, ma
   const { rows } = await query(
     `INSERT INTO campanha_sheets (
       campanha_id, spreadsheet_id, sheet_range,
-      col_data, col_campanha, col_plataforma, col_vendedor, col_ad_name,
+      col_data, col_campanha, col_plataforma, col_vendedor, col_ad_name, col_ad_group,
       col_nome_criativo, col_imagem_criativo, col_tipo_compra, col_posicionamento,
       col_investimento, col_impressoes, col_cliques,
       col_video_views, col_video_views_25, col_video_views_50, col_video_views_75,
       col_video_completions, col_engajamentos, col_leads
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
     ON CONFLICT (campanha_id) DO UPDATE SET
       spreadsheet_id = EXCLUDED.spreadsheet_id,
       sheet_range = EXCLUDED.sheet_range,
@@ -364,6 +364,7 @@ export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, ma
       col_plataforma = EXCLUDED.col_plataforma,
       col_vendedor = EXCLUDED.col_vendedor,
       col_ad_name = EXCLUDED.col_ad_name,
+      col_ad_group = EXCLUDED.col_ad_group,
       col_nome_criativo = EXCLUDED.col_nome_criativo,
       col_imagem_criativo = EXCLUDED.col_imagem_criativo,
       col_tipo_compra = EXCLUDED.col_tipo_compra,
@@ -382,7 +383,7 @@ export async function upsertCampanhaSheet(campanhaId, { spreadsheetId, range, ma
     RETURNING *`,
     [
       campanhaId, spreadsheetId, range,
-      data, campanha || null, plataforma, vendedor || null, adName || null,
+      data, campanha || null, plataforma, vendedor || null, adName || null, adGroup || null,
       nomeCriativo || null, imagemCriativo || null, tipoCompra || null, posicionamento || null,
       investimento, impressoes, cliques,
       videoViews || null, videoViews25 || null, videoViews50 || null, videoViews75 || null,

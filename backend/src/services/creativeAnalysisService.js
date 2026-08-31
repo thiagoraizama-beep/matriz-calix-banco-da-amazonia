@@ -458,8 +458,13 @@ export async function getCreativeByAdName(veiculoOpcao, adName, filters, campanh
 // demais nao entram no mapa de retorno (fail-closed, mesmo padrao do restante do
 // sistema).
 export async function getPerformancePorCampanha(user, campanhaId) {
+  // ad_name OU conjunto (Ad Group): plataformas como Google Performance
+  // Max/Search nao expoem Ad Name individual em nenhum relatorio, entao o
+  // criativo cadastrado sem Ad Name ainda entra no calculo se tiver Ad Group
+  // preenchido -- linhasCasadas cai pro fallback por Ad Group nesse caso
+  // (ver utils/creativeMatch.js).
   const creatives = (await listCreativesByCampanha(user, campanhaId)).filter(
-    (c) => c.acesso_analise_criativo === true && c.ad_name
+    (c) => c.acesso_analise_criativo === true && (c.ad_name || c.conjunto)
   );
   if (creatives.length === 0) return {};
 
@@ -543,7 +548,7 @@ export async function getInvestimentoRealizadoPorCampanha(user, campanhaIds) {
   await Promise.all(
     campanhaIds.map(async (campanhaId) => {
       const creatives = (await listCreativesByCampanha(user, campanhaId)).filter(
-        (c) => c.eh_performance && c.orcamento_projetado && c.ad_name
+        (c) => c.eh_performance && c.orcamento_projetado && (c.ad_name || c.conjunto)
       );
       let total = 0;
       for (const creative of creatives) {

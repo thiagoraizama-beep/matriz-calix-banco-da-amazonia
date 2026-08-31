@@ -279,6 +279,7 @@ CREATE TABLE IF NOT EXISTS campanha_sheets (
   col_plataforma TEXT NOT NULL,
   col_vendedor TEXT,
   col_ad_name TEXT,
+  col_ad_group TEXT,
   col_nome_criativo TEXT,
   col_imagem_criativo TEXT,
   col_tipo_compra TEXT,
@@ -297,6 +298,10 @@ CREATE TABLE IF NOT EXISTS campanha_sheets (
   atualizado_em TIMESTAMP NOT NULL DEFAULT now()
 );
 ALTER TABLE campanha_sheets ADD COLUMN IF NOT EXISTS col_leads TEXT;
+-- Ad Group: fallback de match quando a plataforma nao fornece Ad Name
+-- utilizavel (ex: Google Performance Max/Search, onde o anuncio nao tem
+-- nome individual estavel) -- ver linhasCasadas em utils/creativeMatch.js.
+ALTER TABLE campanha_sheets ADD COLUMN IF NOT EXISTS col_ad_group TEXT;
 
 -- Direcao INVERSA de campanha_sheets acima: aqui o sistema ESCREVE os
 -- criativos da campanha numa planilha do Google Sheets (nao le performance

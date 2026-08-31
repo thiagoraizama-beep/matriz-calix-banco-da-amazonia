@@ -56,12 +56,15 @@ function decidirTransicao(creative, linhas) {
   return null;
 }
 
+// ad_name OU conjunto (Ad Group): ver comentario em linhasCasadas
+// (utils/creativeMatch.js) -- Google Performance Max/Search nao tem Ad Name
+// individual, entao sem esse OR esses criativos nunca seriam avaliados.
 async function buscarCreativosElegiveis(campanhaId) {
   if (campanhaId) {
     const { rows } = await query(
       `SELECT cr.* FROM creatives cr
        LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
-       WHERE cr.status = ANY($1) AND cr.ad_name IS NOT NULL AND cr.ad_name <> '' AND cr.excluido_em IS NULL
+       WHERE cr.status = ANY($1) AND (COALESCE(cr.ad_name, '') <> '' OR COALESCE(cr.conjunto, '') <> '') AND cr.excluido_em IS NULL
          AND (cv.campanha_id = $2
               OR (cr.campanha_veiculo_id IS NULL AND cr.campanha = (SELECT nome FROM campanhas WHERE id = $2)))`,
       [STATUSES_ELEGIVEIS, campanhaId]
@@ -74,7 +77,7 @@ async function buscarCreativosElegiveis(campanhaId) {
     `SELECT cr.* FROM creatives cr
      LEFT JOIN campanha_veiculos cv ON cv.id = cr.campanha_veiculo_id
      LEFT JOIN campanhas c ON c.id = cv.campanha_id
-     WHERE cr.status = ANY($1) AND cr.ad_name IS NOT NULL AND cr.ad_name <> '' AND cr.excluido_em IS NULL
+     WHERE cr.status = ANY($1) AND (COALESCE(cr.ad_name, '') <> '' OR COALESCE(cr.conjunto, '') <> '') AND cr.excluido_em IS NULL
        AND (c.status IS NULL OR c.status NOT IN ('finalizado', 'cancelado'))`,
     [STATUSES_ELEGIVEIS]
   );
