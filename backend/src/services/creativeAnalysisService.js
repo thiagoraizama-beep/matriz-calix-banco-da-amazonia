@@ -454,9 +454,9 @@ export async function getCreativeByAdName(veiculoOpcao, adName, filters, campanh
 // caminho e inverso: parte dos criativos ja cadastrados (listCreativesByCampanha,
 // que ja aplica o escopo/permissao do usuario) e casa cada um contra a planilha via
 // linhasCasadas -- a mesma funcao usada pelo job de sincronizacao de status. So
-// contempla criativos com acesso_analise_criativo=true e ad_name preenchido; os
-// demais nao entram no mapa de retorno (fail-closed, mesmo padrao do restante do
-// sistema).
+// contempla criativos com acesso_analise_criativo=true e (ad_name OU conjunto/Ad
+// Group) preenchido; os demais nao entram no mapa de retorno (fail-closed, mesmo
+// padrao do restante do sistema).
 export async function getPerformancePorCampanha(user, campanhaId) {
   // ad_name OU conjunto (Ad Group): plataformas como Google Performance
   // Max/Search nao expoem Ad Name individual em nenhum relatorio, entao o
@@ -550,6 +550,11 @@ export async function getInvestimentoRealizadoPorCampanha(user, campanhaIds) {
       const creatives = (await listCreativesByCampanha(user, campanhaId)).filter(
         (c) => c.eh_performance && c.orcamento_projetado && (c.ad_name || c.conjunto)
       );
+      // Cada criativo aqui ja tem Ad Name ou Ad Group (filtro acima), entao
+      // linhasCasadas nunca cai no ultimo nivel de fallback (Campaign Name
+      // sem Ad Group) pra esse conjunto -- Ad Name/Ad Group ja sao
+      // especificos o suficiente pra nao arriscar 2 criativos casarem com as
+      // mesmas linhas e duplicar o total somado por criativo abaixo.
       let total = 0;
       for (const creative of creatives) {
         const linhas = linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma);

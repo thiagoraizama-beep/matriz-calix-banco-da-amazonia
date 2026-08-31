@@ -43,28 +43,26 @@ function plataformasAceitas(plataformaCadastrada, subcanaisPorPlataforma) {
 // descartava todas as linhas silenciosamente (card ficava zerado mesmo com dado
 // existente na planilha).
 //
-// Fallback por Ad Group: algumas plataformas (Google Performance Max/Search)
-// nao expoem um Ad Name individual estavel em relatorio nenhum -- o anuncio
-// responsivo nao tem "nome" no sentido que Meta/TikTok tem. Quando o criativo
-// cadastrado NAO tem ad_name preenchido, casa por Ad Group + Veiculo + Tipo de
-// compra em vez de Ad Name, e so considera linhas cuja data cai dentro do
-// periodo de veiculacao do criativo (sem isso, Ad Group sozinho e generico
-// demais e arriscaria somar dias de fora do periodo certo).
+// Fallback em cascata (Ad Name -> Ad Group -> Campaign Name): algumas
+// plataformas (Google Performance Max/Search) nao expoem um Ad Name
+// individual estavel em relatorio nenhum -- o anuncio responsivo nao tem
+// "nome" no sentido que Meta/TikTok tem, e em alguns relatorios nem o Ad
+// Group esta disponivel. Ad Name e sempre preferido (mais preciso); Ad
+// Group entra so quando nao ha Ad Name; Campaign Name e o ultimo recurso,
+// so quando nem Ad Name nem Ad Group existem -- nesse nivel a metrica fica
+// por CAMPANHA inteira, dividida entre todos os criativos daquele Campaign
+// Name (ver getPerformancePorCampanha). Os dois fallbacks tambem exigem que
+// a data da linha da planilha caia dentro do periodo de veiculacao do
+// criativo, ja que sao chaves menos especificas que Ad Name sozinho.
 export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma = null) {
   const plataformasValidas = plataformasAceitas(creative.plataforma, subcanaisPorPlataforma);
   const adNameAlvo = normalizarAdName(creative.ad_name);
 
-  if (!adNameAlvo) {
-    const adGroupAlvo = normalizarAdName(creative.conjunto);
-    if (!adGroupAlvo) return [];
-    const inicio = toISODate(creative.periodo_inicio);
-    const fim = toISODate(creative.periodo_fim);
+  if (adNameAlvo) {
     return linhasPlanilha.filter((linha) => {
-      if (normalizarAdName(linha.adGroup) !== adGroupAlvo) return false;
+      if (normalizarAdName(linha.adName) !== adNameAlvo) return false;
       if (!plataformasValidas.includes(linha.plataforma)) return false;
       if (linha.campanha !== creative.campanha) return false;
-      const dataLinha = toISODate(linha.data);
-      if (inicio && fim && dataLinha && !isWithinRange(dataLinha, inicio, fim)) return false;
       if (creative.eh_performance) return true;
       if (linha.vendedor !== creative.veiculo) return false;
       if (!creative.tipos_compra?.includes(linha.tipoCompra)) return false;
@@ -72,13 +70,41 @@ export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma =
     });
   }
 
-  return linhasPlanilha.filter((linha) => {
-    if (normalizarAdName(linha.adName) !== adNameAlvo) return false;
+  // A coluna "Campaign Name" que o Google exporta e o mesmo texto usado no
+  // campo Campaign Name do cadastro (ex: "2026_CAMPANHA_CONVERSAO_X"),
+  // diferente do nome curto da Campanha no sistema (ex: "Capital de Giro -
+  // Etapa 2") -- compara com campaign_name primeiro, so cai pro nome da
+  // Campanha se o criativo nao tiver campaign_name preenchido. Usado tanto
+  // pelo fallback de Ad Group quanto pelo de Campaign Name abaixo.
+  const campanhaAlvo = creative.campaign_name || creative.campanha;
+  const inicio = toISODate(creative.periodo_inicio);
+  const fim = toISODate(creative.periodo_fim);
+  function dentroDoPeriodo(linha) {
+    const dataLinha = toISODate(linha.data);
+    return !(inicio && fim && dataLinha && !isWithinRange(dataLinha, inicio, fim));
+  }
+  function passaFiltrosComuns(linha) {
     if (!plataformasValidas.includes(linha.plataforma)) return false;
-    if (linha.campanha !== creative.campanha) return false;
+    if (!dentroDoPeriodo(linha)) return false;
     if (creative.eh_performance) return true;
     if (linha.vendedor !== creative.veiculo) return false;
     if (!creative.tipos_compra?.includes(linha.tipoCompra)) return false;
     return true;
+  }
+
+  const adGroupAlvo = normalizarAdName(creative.conjunto);
+  if (adGroupAlvo) {
+    const linhas = linhasPlanilha.filter((linha) => {
+      if (normalizarAdName(linha.adGroup) !== adGroupAlvo) return false;
+      if (linha.campanha !== campanhaAlvo) return false;
+      return passaFiltrosComuns(linha);
+    });
+    if (linhas.length > 0) return linhas;
+  }
+
+  if (!campanhaAlvo) return [];
+  return linhasPlanilha.filter((linha) => {
+    if (linha.campanha !== campanhaAlvo) return false;
+    return passaFiltrosComuns(linha);
   });
 }

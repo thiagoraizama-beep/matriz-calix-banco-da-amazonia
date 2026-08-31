@@ -45,9 +45,13 @@ function rowsToObjects(rows) {
   });
 }
 
-// Datas na planilha vem como "DD/MM/YYYY"; convertemos para "YYYY-MM-DD" (comparavel via string).
+// Datas na planilha normalmente vem como "DD/MM/YYYY", mas exportacoes nativas
+// do Google Ads (relatorio "Day") ja vem em "YYYY-MM-DD" -- aceita os dois
+// formatos, sempre normalizando para "YYYY-MM-DD" (comparavel via string).
 function parseBRDate(value) {
-  const [day, month, year] = (value || "").split("/");
+  const str = (value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const [day, month, year] = str.split("/");
   if (!day || !month || !year) return "";
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
