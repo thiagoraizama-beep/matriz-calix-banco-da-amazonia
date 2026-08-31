@@ -83,11 +83,19 @@ export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma =
     const dataLinha = toISODate(linha.data);
     return !(inicio && fim && dataLinha && !isWithinRange(dataLinha, inicio, fim));
   }
+  // Campanha/Vendedor sao filtros OPCIONAIS aqui -- diferente do caminho por
+  // Ad Name, onde sao obrigatorios. A planilha nem sempre tem coluna
+  // "Campanha"/"Vendedor" mapeada (ex: consolidado com varias campanhas
+  // numa aba so, sem separar vendor); quando a coluna nao esta mapeada,
+  // linha.campanha/linha.vendedor vem sempre undefined e um filtro
+  // obrigatorio nunca bateria com nada, zerando o card por engano. So
+  // filtra por campanha/vendedor quando a linha TEM esse dado preenchido.
   function passaFiltrosComuns(linha) {
     if (!plataformasValidas.includes(linha.plataforma)) return false;
     if (!dentroDoPeriodo(linha)) return false;
+    if (linha.campanha && linha.campanha !== campanhaAlvo) return false;
     if (creative.eh_performance) return true;
-    if (linha.vendedor !== creative.veiculo) return false;
+    if (linha.vendedor && linha.vendedor !== creative.veiculo) return false;
     if (!creative.tipos_compra?.includes(linha.tipoCompra)) return false;
     return true;
   }
@@ -96,7 +104,6 @@ export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma =
   if (adGroupAlvo) {
     const linhas = linhasPlanilha.filter((linha) => {
       if (normalizarAdName(linha.adGroup) !== adGroupAlvo) return false;
-      if (linha.campanha !== campanhaAlvo) return false;
       return passaFiltrosComuns(linha);
     });
     if (linhas.length > 0) return linhas;
