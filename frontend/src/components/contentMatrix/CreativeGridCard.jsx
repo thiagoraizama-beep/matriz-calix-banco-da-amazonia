@@ -332,7 +332,11 @@ export default function CreativeGridCard({
 
   const midia = (
     <div
-      onClick={handleCardClick}
+      // Sem selectable, o clique so faz sentido aqui na midia (abre detalhe);
+      // com selectable, o clique fica no card inteiro (ver onClick mais
+      // abaixo) -- botar aqui tambem faria bubbling pro pai e chamar
+      // handleCardClick 2x (alternando a selecao pra tras).
+      onClick={selectable ? undefined : handleCardClick}
       style={{
         cursor: "pointer", position: "relative", background: "var(--bg)", overflow: "hidden",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -477,8 +481,10 @@ export default function CreativeGridCard({
     return (
       <div
         className={`card${!selected && creative.status === "Aguardando implementação" ? " card-glow-aguardando" : ""}`}
+        onClick={selectable ? handleCardClick : undefined}
         style={{
           padding: 10, display: "flex", gap: 12,
+          cursor: selectable ? "pointer" : "default",
           border: selected
             ? "2px solid var(--accent)"
             : creative.status === "Aguardando implementação"
@@ -500,8 +506,10 @@ export default function CreativeGridCard({
   return (
     <div
       className={`card${!selected && creative.status === "Aguardando implementação" ? " card-glow-aguardando" : ""}`}
+      onClick={selectable ? handleCardClick : undefined}
       style={{
         padding: 0, overflow: "hidden", display: "flex", flexDirection: "column",
+        cursor: selectable ? "pointer" : "default",
         border: selected
           ? "2px solid var(--accent)"
           : creative.status === "Aguardando implementação"
