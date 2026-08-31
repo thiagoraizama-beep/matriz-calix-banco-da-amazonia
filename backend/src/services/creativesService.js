@@ -816,7 +816,17 @@ export async function updateStatus(id, novoStatus, user, pularRegistroOperacaoBu
   // (na hora, o status ja e trivialmente reversivel clicando de novo no card).
   if (!pularRegistroOperacaoBulk) {
     await registrarOperacaoBulk(user.id, ["status"], [{ creativeId: creative.id, valoresAntes: { status: creative.status } }]);
-    await agendarSyncSheet(campanhaIdLog);
+    // Em producao (Vercel serverless) o await e proposital -- uma promise nao
+    // aguardada pode ser morta assim que a resposta HTTP sai, entao esperamos
+    // pra garantir que a planilha sincronize (o cron diario cobre falhas
+    // transitorias). Localmente (node --watch, processo de longa duracao) essa
+    // garantia nao e necessaria e o await so trava a troca de status por
+    // segundos a toa (~4s por chamada ao Sheets) -- roda em background.
+    if (process.env.VERCEL) {
+      await agendarSyncSheet(campanhaIdLog);
+    } else {
+      agendarSyncSheet(campanhaIdLog).catch((err) => console.error("agendarSyncSheet (background) falhou:", err));
+    }
   }
 
   return rows[0];

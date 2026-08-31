@@ -88,7 +88,7 @@ const menuItemStyle = {
 
 // Popover de troca de status, ancorado por position:fixed a partir do botao de
 // lapis no proprio card -- mesmo padrao usado antes na tabela da Matriz.
-function StatusPopover({ value, options, onChangeStatus, onClose, anchorRect }) {
+export function StatusPopover({ value, options, onChangeStatus, onClose, anchorRect }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -133,7 +133,7 @@ function StatusPopover({ value, options, onChangeStatus, onClose, anchorRect }) 
 // Menu de acoes (baixar/ver detalhes/editar/duplicar/excluir) acionado pelo botao
 // "..." -- substitui o rodape de icones sempre expostos, mantendo o card focado na
 // peca criativa. Mesmo padrao de popover fixo do StatusPopover.
-function ActionsMenu({ creative, onOpenDetail, onEdit, onDuplicate, onDelete, canEdit, onClose, anchorRect }) {
+export function ActionsMenu({ creative, onOpenDetail, onEdit, onDuplicate, onDelete, canEdit, onClose, anchorRect }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -219,9 +219,9 @@ export function OrcamentoBar({ orcamento, investido }) {
 
   return (
     <div style={{ padding: "8px 0", borderTop: "1px solid var(--border)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
-        <span>Orçamento</span>
-        <span style={{ color: estourou ? "var(--danger)" : "var(--text-secondary)", fontWeight: 600 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4, fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
+        <span style={{ flexShrink: 0 }}>Orçamento</span>
+        <span style={{ color: estourou ? "var(--danger)" : "var(--text-secondary)", fontWeight: 600, whiteSpace: "nowrap" }}>
           R$ {investido.toLocaleString("pt-BR")} / R$ {orcamento.toLocaleString("pt-BR")}
         </span>
       </div>
@@ -248,7 +248,23 @@ export function OrcamentoBar({ orcamento, investido }) {
 // sumir a secao inteira. So quando o vinculo nao tem a permissao e que a faixa some.
 const METRICAS_ZERADAS = { investimento: 0, ctr: 0, impressoes: 0, cliques: 0 };
 
-function MetricsRow({ performance }) {
+// compacto: so Investimento (em destaque) + CTR -- usado no card horizontal
+// da grade agrupada por plataforma, pra nao competir com miniatura+nome+status
+// num espaco menor. Impressoes/Cliques continuam disponiveis no modo Foco e
+// no detalhe do criativo, so somem daqui.
+function MetricsRow({ performance, compacto }) {
+  if (compacto) {
+    return (
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "6px 0" }}>
+        <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+          R$ {performance.investimento.toLocaleString("pt-BR")}
+        </span>
+        <span style={{ fontSize: 12, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+          {performance.ctr}% CTR
+        </span>
+      </div>
+    );
+  }
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 10px", padding: "10px 0", borderTop: "1px solid var(--border)" }}>
       <div>
@@ -283,7 +299,14 @@ export default function CreativeGridCard({
   statusOptions, onStatusChange, updatingStatus, performance,
   selectable, selected, onToggleSelect,
   urgente, campanhaNome, esconderStatusBadge, modoKanban,
+  layout = "vertical", metricasCompactas,
 }) {
+  const horizontal = layout === "horizontal";
+  // Compacto (so Investimento + CTR) e opt-in explicito -- usado no painel
+  // de Foco, que quer o card grande sem repetir 4 rotulos maiusculos. O
+  // card horizontal da grade mostra as 4 metricas completas, como o
+  // vertical sempre mostrou.
+  const compacto = metricasCompactas;
   const [statusAnchor, setStatusAnchor] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const statusBtnRef = useRef(null);
@@ -307,6 +330,173 @@ export default function CreativeGridCard({
     else onOpenDetail(creative);
   }
 
+  const midia = (
+    <div
+      onClick={handleCardClick}
+      style={{
+        cursor: "pointer", position: "relative", background: "var(--bg)", overflow: "hidden",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: horizontal ? "100%" : 220,
+        borderRadius: horizontal ? 10 : 0,
+      }}
+    >
+      {creative.formato?.includes("Search") ? (
+        <KeywordCloud palavrasChave={creative.search_campos?.palavrasChave} />
+      ) : (
+        <MediaCarousel creative={creative} mostrarIndicadores={false} />
+      )}
+      {selectable && (
+        <div
+          style={{
+            position: "absolute", bottom: 10, left: 10, width: 22, height: 22, borderRadius: 6,
+            border: `2px solid ${selected ? "var(--accent)" : "#fff"}`, background: selected ? "var(--accent)" : "rgba(255,255,255,0.3)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          {selected && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      )}
+      {urgenciaLabel && (
+        <span
+          style={{
+            position: "absolute", top: 8, left: 8,
+            fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
+            textTransform: "uppercase", letterSpacing: "0.02em", color: "#fff", background: "#c77f1a",
+          }}
+        >
+          {urgenciaLabel}
+        </span>
+      )}
+      {!modoKanban && !horizontal && formatPeriodo(creative.periodo_inicio, creative.periodo_fim) && (
+        <span
+          style={{
+            position: "absolute", bottom: 8, right: 8, display: "flex", alignItems: "center", gap: 3,
+            fontSize: 9.5, fontWeight: 600, color: "#fff", background: "rgba(20,33,61,0.55)",
+            padding: "3px 7px", borderRadius: 999, backdropFilter: "blur(2px)",
+          }}
+        >
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ flexShrink: 0 }}>
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <path d="M8 2v4M16 2v4M3 10h18" />
+          </svg>
+          {formatPeriodo(creative.periodo_inicio, creative.periodo_fim)}
+        </span>
+      )}
+      {statusAnchor && (
+        <StatusPopover
+          value={creative.status}
+          options={statusOptions}
+          anchorRect={statusAnchor}
+          onChangeStatus={(status) => { onStatusChange(creative.id, status); setStatusAnchor(null); }}
+          onClose={() => setStatusAnchor(null)}
+        />
+      )}
+      {menuAnchor && (
+        <ActionsMenu
+          creative={creative}
+          anchorRect={menuAnchor}
+          canEdit={canEdit}
+          onOpenDetail={onOpenDetail}
+          onEdit={onEdit}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onClose={() => setMenuAnchor(null)}
+        />
+      )}
+    </div>
+  );
+
+  const header = (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: horizontal ? "0 0 6px" : "8px 10px", borderBottom: horizontal ? "none" : "1px solid var(--border)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+        {!esconderStatusBadge && <StatusBadge status={creative.status} />}
+        {!selectable && statusOptions && (
+          <button
+            ref={statusBtnRef}
+            onClick={toggleStatus}
+            disabled={updatingStatus}
+            title="Alterar status"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, flexShrink: 0,
+              borderRadius: 6, border: "none", background: "transparent",
+              cursor: updatingStatus ? "default" : "pointer", color: "var(--text-secondary)",
+              opacity: updatingStatus ? 0.5 : 1,
+            }}
+          >
+            <PencilIcon />
+          </button>
+        )}
+      </div>
+      {!selectable && (
+        <button
+          ref={menuBtnRef}
+          onClick={toggleMenu}
+          title="Mais ações"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            width: 26, height: 26, borderRadius: 7, border: "none", background: "transparent",
+            color: "var(--text-secondary)", cursor: "pointer",
+          }}
+        >
+          <DotsIcon />
+        </button>
+      )}
+    </div>
+  );
+
+  const corpo = (
+    <div style={{ padding: horizontal ? 0 : "12px 14px 14px", display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+      <div>
+        <strong style={{ fontSize: 13.5, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {creative.nome}
+        </strong>
+        <span style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>
+          {creative.plataforma || creative.veiculo}
+        </span>
+        {campanhaNome && (
+          <span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {campanhaNome}
+          </span>
+        )}
+      </div>
+
+      {!modoKanban && creative.acesso_analise_criativo === true && (
+        <MetricsRow performance={performance || METRICAS_ZERADAS} compacto={compacto} />
+      )}
+      {!modoKanban && creative.eh_performance && creative.orcamento_projetado > 0 && creative.acesso_analise_criativo === true && (
+        <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={(performance || METRICAS_ZERADAS).investimento} />
+      )}
+    </div>
+  );
+
+  if (horizontal) {
+    return (
+      <div
+        className={`card${!selected && creative.status === "Aguardando implementação" ? " card-glow-aguardando" : ""}`}
+        style={{
+          padding: 10, display: "flex", gap: 12,
+          border: selected
+            ? "2px solid var(--accent)"
+            : creative.status === "Aguardando implementação"
+            ? "2px solid transparent"
+            : urgenciaLabel
+            ? "2px solid #c77f1a"
+            : "2px solid transparent",
+        }}
+      >
+        <div style={{ width: 150, height: 150, flexShrink: 0 }}>{midia}</div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+          {header}
+          {corpo}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`card${!selected && creative.status === "Aguardando implementação" ? " card-glow-aguardando" : ""}`}
@@ -321,140 +511,9 @@ export default function CreativeGridCard({
           : "2px solid transparent",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 10px", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-          {!esconderStatusBadge && <StatusBadge status={creative.status} />}
-          {!selectable && statusOptions && (
-            <button
-              ref={statusBtnRef}
-              onClick={toggleStatus}
-              disabled={updatingStatus}
-              title="Alterar status"
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, flexShrink: 0,
-                borderRadius: 6, border: "none", background: "transparent",
-                cursor: updatingStatus ? "default" : "pointer", color: "var(--text-secondary)",
-                opacity: updatingStatus ? 0.5 : 1,
-              }}
-            >
-              <PencilIcon />
-            </button>
-          )}
-        </div>
-        {!selectable && (
-          <button
-            ref={menuBtnRef}
-            onClick={toggleMenu}
-            title="Mais ações"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              width: 26, height: 26, borderRadius: 7, border: "none", background: "transparent",
-              color: "var(--text-secondary)", cursor: "pointer",
-            }}
-          >
-            <DotsIcon />
-          </button>
-        )}
-      </div>
-
-      <div
-        onClick={handleCardClick}
-        style={{
-          cursor: "pointer", position: "relative", background: "var(--bg)", overflow: "hidden",
-          display: "flex", alignItems: "center", justifyContent: "center", height: 220,
-        }}
-      >
-        {creative.formato?.includes("Search") ? (
-          <KeywordCloud palavrasChave={creative.search_campos?.palavrasChave} />
-        ) : (
-          <MediaCarousel creative={creative} mostrarIndicadores={false} />
-        )}
-        {selectable && (
-          <div
-            style={{
-              position: "absolute", bottom: 10, left: 10, width: 22, height: 22, borderRadius: 6,
-              border: `2px solid ${selected ? "var(--accent)" : "#fff"}`, background: selected ? "var(--accent)" : "rgba(255,255,255,0.3)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            {selected && (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
-                <path d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </div>
-        )}
-        {urgenciaLabel && (
-          <span
-            style={{
-              position: "absolute", top: 8, left: 8,
-              fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
-              textTransform: "uppercase", letterSpacing: "0.02em", color: "#fff", background: "#c77f1a",
-            }}
-          >
-            {urgenciaLabel}
-          </span>
-        )}
-        {!modoKanban && formatPeriodo(creative.periodo_inicio, creative.periodo_fim) && (
-          <span
-            style={{
-              position: "absolute", bottom: 8, right: 8, display: "flex", alignItems: "center", gap: 3,
-              fontSize: 9.5, fontWeight: 600, color: "#fff", background: "rgba(20,33,61,0.55)",
-              padding: "3px 7px", borderRadius: 999, backdropFilter: "blur(2px)",
-            }}
-          >
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ flexShrink: 0 }}>
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M8 2v4M16 2v4M3 10h18" />
-            </svg>
-            {formatPeriodo(creative.periodo_inicio, creative.periodo_fim)}
-          </span>
-        )}
-        {statusAnchor && (
-          <StatusPopover
-            value={creative.status}
-            options={statusOptions}
-            anchorRect={statusAnchor}
-            onChangeStatus={(status) => { onStatusChange(creative.id, status); setStatusAnchor(null); }}
-            onClose={() => setStatusAnchor(null)}
-          />
-        )}
-        {menuAnchor && (
-          <ActionsMenu
-            creative={creative}
-            anchorRect={menuAnchor}
-            canEdit={canEdit}
-            onOpenDetail={onOpenDetail}
-            onEdit={onEdit}
-            onDuplicate={onDuplicate}
-            onDelete={onDelete}
-            onClose={() => setMenuAnchor(null)}
-          />
-        )}
-      </div>
-
-      <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", flex: 1 }}>
-        <div>
-          <strong style={{ fontSize: 13.5, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {creative.nome}
-          </strong>
-          <span style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>
-            {creative.plataforma || creative.veiculo}
-          </span>
-          {campanhaNome && (
-            <span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {campanhaNome}
-            </span>
-          )}
-        </div>
-
-        {!modoKanban && creative.acesso_analise_criativo === true && (
-          <MetricsRow performance={performance || METRICAS_ZERADAS} />
-        )}
-        {!modoKanban && creative.eh_performance && creative.orcamento_projetado > 0 && creative.acesso_analise_criativo === true && (
-          <OrcamentoBar orcamento={Number(creative.orcamento_projetado)} investido={(performance || METRICAS_ZERADAS).investimento} />
-        )}
-      </div>
+      {header}
+      {midia}
+      {corpo}
     </div>
   );
 }

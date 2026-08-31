@@ -22,6 +22,8 @@ import KanbanBoard from "../../common/KanbanBoard.jsx";
 import { useMatrixFiltersContext } from "../../../context/MatrixFiltersContext.jsx";
 import TrashIcon from "../../common/TrashIcon.jsx";
 import { isUrgente } from "../../../utils/urgencia.js";
+import MatrixSidebarFilters from "./MatrixSidebarFilters.jsx";
+import CreativeFocusCard from "./CreativeFocusCard.jsx";
 
 function WarningIcon() {
   return (
@@ -95,6 +97,24 @@ function SheetIcon() {
   );
 }
 
+function GridIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+      <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+    </svg>
+  );
+}
+
+function FocusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="12" height="18" rx="2" />
+      <line x1="18" y1="8" x2="21" y2="8" /><line x1="18" y1="12" x2="21" y2="12" /><line x1="18" y1="16" x2="21" y2="16" />
+    </svg>
+  );
+}
+
 export default function AgencyMatrixView({ campanhaId } = {}) {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -130,6 +150,13 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   // renderize o toggle dentro do menu do usuario, igual ao Tema.
   const { visualizacao, setVisualizacao, overlayAberto } = useMatrixFiltersContext();
   const [kanbanError, setKanbanError] = useState("");
+  // Modo dentro da visualizacao "grade" (nao confundir com visualizacao
+  // grade/kanban acima): "grade" mostra todos os cards lado a lado pra
+  // comparar; "foco" mostra 1 criativo grande + lista compacta de navegacao
+  // ao lado, pra examinar em detalhe sem abrir o modal. So existe no modo
+  // Grade desktop -- o Kanban continua com seu proprio layout, sem foco.
+  const [modoCards, setModoCards] = useState("grade");
+  const [focoCreativeId, setFocoCreativeId] = useState(null);
   const { filtered, options, filters, setStatus, setVeiculo, setCampanha, setPlataforma, setModeloCompra } = useMatrixFilters(creatives);
   const isMobile = useIsMobile();
   const statusCounts = creatives ? groupByStatus(creatives) : {};
@@ -467,6 +494,79 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const criativosUrgentes = filtered.filter((c) => isUrgente(c.periodo_inicio));
   const filteredOrdenado = [...filtered].sort((a, b) => isUrgente(b.periodo_inicio) - isUrgente(a.periodo_inicio));
 
+  // Abas de plataforma (Todos / Meta Ads / Google Ads / ...) acima da grade --
+  // usa o mesmo filtro de plataforma que ja existia (setPlataforma), so muda a
+  // apresentacao: em vez de um multi-select generico, uma aba unica selecionavel
+  // por vez, cada uma com o investimento total daquela plataforma (somado via
+  // performanceMap, ja carregado pra alimentar a OrcamentoBar de cada criativo).
+  // Baseado em "creatives" (nao "filtered"), pra a lista de abas nao sumir
+  // quando outro filtro (status/veiculo/busca) reduz a lista visivel.
+  const plataformaAtiva = filters.plataforma[0] || null;
+  const abasPlataforma = (creatives || []).reduce((mapa, c) => {
+    if (!c.plataforma) return mapa;
+    mapa.set(c.plataforma, (mapa.get(c.plataforma) || 0) + 1);
+    return mapa;
+  }, new Map());
+  function selecionarAbaPlataforma(nome) {
+    setPlataforma(nome ? [nome] : []);
+  }
+  // Investimento (Realizado) somado por plataforma, a partir do MESMO
+  // universo ja filtrado por status/veiculo/busca (filtered) -- reflete o
+  // que esta na tela, nao a campanha toda, mesmo raciocinio da Verba total.
+  const investimentoPorPlataforma = filtered.reduce((mapa, c) => {
+    if (!c.plataforma) return mapa;
+    const investimento = performanceMap[c.id]?.investimento || 0;
+    mapa.set(c.plataforma, (mapa.get(c.plataforma) || 0) + investimento);
+    return mapa;
+  }, new Map());
+  const investimentoTotalFiltrado = [...investimentoPorPlataforma.values()].reduce((a, b) => a + b, 0);
+  const formatBRL = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  // Agrupa a grade por plataforma (Meta Ads, Google Ads, ...), na ordem em
+  // que cada uma aparece pela primeira vez em filteredOrdenado -- evita
+  // misturar plataformas diferentes visualmente quando a sidebar esta em
+  // "Todas". Com uma plataforma especifica filtrada, ha sempre 1 grupo so.
+  const gruposPlataforma = Object.entries(
+    filteredOrdenado.reduce((mapa, c) => {
+      const chave = c.plataforma || "";
+      if (!mapa[chave]) mapa[chave] = [];
+      mapa[chave].push(c);
+      return mapa;
+    }, {})
+  );
+
+  const abasPlataformaBarra = campanhaId && abasPlataforma.size > 0 && (
+    <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", marginBottom: 16 }}>
+      <button
+        type="button"
+        onClick={() => selecionarAbaPlataforma(null)}
+        style={{
+          padding: "8px 4px 12px", marginRight: 22, border: "none", background: "transparent", cursor: "pointer",
+          color: !plataformaAtiva ? "var(--text-primary)" : "var(--text-secondary)",
+          fontWeight: !plataformaAtiva ? 700 : 600, fontSize: 13.5,
+          borderBottom: !plataformaAtiva ? "2px solid var(--accent)" : "2px solid transparent",
+        }}
+      >
+        Todos <span style={{ fontWeight: 500, color: "var(--text-secondary)", fontSize: 12 }}>· {creatives?.length || 0}</span>
+      </button>
+      {[...abasPlataforma.entries()].map(([nome, count]) => (
+        <button
+          key={nome}
+          type="button"
+          onClick={() => selecionarAbaPlataforma(nome)}
+          style={{
+            padding: "8px 4px 12px", marginRight: 22, border: "none", background: "transparent", cursor: "pointer",
+            color: plataformaAtiva === nome ? "var(--text-primary)" : "var(--text-secondary)",
+            fontWeight: plataformaAtiva === nome ? 700 : 600, fontSize: 13.5,
+            borderBottom: plataformaAtiva === nome ? "2px solid var(--accent)" : "2px solid transparent",
+          }}
+        >
+          {nome} <span style={{ fontWeight: 500, color: "var(--text-secondary)", fontSize: 12 }}>· {count}</span>
+        </button>
+      ))}
+    </div>
+  );
+
   const idsUrgentesAtual = criativosUrgentes.map((c) => c.id).sort().join(",");
   const bannerFechado = bannerUrgenciaFechadoIds === idsUrgentesAtual;
 
@@ -493,36 +593,182 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
     </div>
   );
 
-  const grid = !creatives ? <Spinner /> : (
-    <>
-      <CreativeCardGrid>
-        {filteredOrdenado.map((c) => (
-          <CreativeGridCard
-            key={c.id}
-            creative={c}
-            urgente={isUrgente(c.periodo_inicio)}
-            onOpenDetail={setViewing}
-            onEdit={openEdit}
-            onDuplicate={openDuplicate}
-            onDelete={setDeleting}
-            canEdit
-            statusOptions={STATUS_OPTIONS_AGENCIA}
-            onStatusChange={handleStatusChange}
-            updatingStatus={updatingId === c.id}
-            performance={performanceMap[c.id]}
-            selectable={comparando || editandoEmMassa}
-            selected={selecionados.includes(c.id)}
-            onToggleSelect={toggleSelect}
+  // Props comuns do CreativeGridCard (grade e foco usam exatamente as mesmas --
+  // reaproveita 100% das acoes ja testadas, so muda o container ao redor).
+  function propsDoCard(c) {
+    return {
+      creative: c,
+      urgente: isUrgente(c.periodo_inicio),
+      onOpenDetail: setViewing,
+      onEdit: openEdit,
+      onDuplicate: openDuplicate,
+      onDelete: setDeleting,
+      canEdit: true,
+      statusOptions: STATUS_OPTIONS_AGENCIA,
+      onStatusChange: handleStatusChange,
+      updatingStatus: updatingId === c.id,
+      performance: performanceMap[c.id],
+      selectable: comparando || editandoEmMassa,
+      selected: selecionados.includes(c.id),
+      onToggleSelect: toggleSelect,
+    };
+  }
+
+  const focoAtivo = modoCards === "foco" && filteredOrdenado.find((c) => c.id === focoCreativeId);
+
+  const viewToggle = campanhaId && filteredOrdenado.length > 0 && (
+    <div style={{ display: "flex", background: "var(--bg)", borderRadius: 10, padding: 3, gap: 2, flexShrink: 0 }}>
+      <button
+        type="button"
+        onClick={() => setModoCards("grade")}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+          background: modoCards === "grade" ? "var(--card-bg)" : "transparent",
+          color: modoCards === "grade" ? "var(--text-primary)" : "var(--text-secondary)",
+          fontWeight: 600, fontSize: 12,
+          boxShadow: modoCards === "grade" ? "0 1px 3px rgba(10,16,32,0.1)" : "none",
+        }}
+      >
+        <GridIcon /> Grade
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (!focoCreativeId && filteredOrdenado[0]) setFocoCreativeId(filteredOrdenado[0].id);
+          setModoCards("foco");
+        }}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+          background: modoCards === "foco" ? "var(--card-bg)" : "transparent",
+          color: modoCards === "foco" ? "var(--text-primary)" : "var(--text-secondary)",
+          fontWeight: 600, fontSize: 12,
+          boxShadow: modoCards === "foco" ? "0 1px 3px rgba(10,16,32,0.1)" : "none",
+        }}
+      >
+        <FocusIcon /> Foco
+      </button>
+    </div>
+  );
+
+  const gridConteudo = !creatives ? <Spinner /> : (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
+        <span style={{ fontSize: 12.5, color: "var(--text-secondary)", fontWeight: 600 }}>
+          {focoAtivo ? focoAtivo.nome : `${filteredOrdenado.length} criativo${filteredOrdenado.length === 1 ? "" : "s"}`}
+        </span>
+        {viewToggle}
+      </div>
+
+      {focoAtivo ? (
+        <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 18, alignItems: "start" }}>
+          <div style={{ width: 360 }}>
+            <CreativeFocusCard
+              key={focoAtivo.id}
+              creative={focoAtivo}
+              onEdit={openEdit}
+              onDuplicate={openDuplicate}
+              onDelete={setDeleting}
+              canEdit
+              statusOptions={STATUS_OPTIONS_AGENCIA}
+              onStatusChange={handleStatusChange}
+              updatingStatus={updatingId === focoAtivo.id}
+              performance={performanceMap[focoAtivo.id]}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {filteredOrdenado.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => setFocoCreativeId(c.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                  background: c.id === focoAtivo.id ? "var(--accent-soft)" : "var(--card-bg)",
+                  border: `1px solid ${c.id === focoAtivo.id ? "var(--accent)" : "var(--border)"}`,
+                  borderRadius: 10, padding: "7px 10px",
+                }}
+              >
+                <div style={{ width: 34, height: 34, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: "var(--bg)" }}>
+                  {c.cloudinary_url && (
+                    c.tipo_midia === "video" ? (
+                      <video src={c.cloudinary_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <img src={c.cloudinary_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    )
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong style={{ display: "block", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nome}</strong>
+                  <span style={{ fontSize: 10.5, color: "var(--text-secondary)" }}>{c.plataforma || c.veiculo}</span>
+                </div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: performanceMap[c.id]?.investimento ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                  {performanceMap[c.id]?.investimento
+                    ? Number(performanceMap[c.id].investimento).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                    : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Com "Todas" selecionado na sidebar, agrupa por plataforma com um
+              cabecalho de secao (Meta Ads, Google Ads, ...) -- sem isso a
+              grade misturava plataformas diferentes sem nenhuma separacao
+              visual. Ao filtrar uma plataforma especifica, ha so 1 grupo
+              (o cabecalho fica redundante com a sidebar, entao some). */}
+          {gruposPlataforma.map(([nome, itens]) => (
+            <div key={nome || "sem-plataforma"} style={{ marginBottom: 22 }}>
+              {!plataformaAtiva && nome && (
+                <p style={{ margin: "0 0 10px", fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)" }} />
+                  {nome}
+                  <span style={{ fontWeight: 500 }}>· {itens.length}</span>
+                </p>
+              )}
+              <CreativeCardGrid minWidth={480}>
+                {itens.map((c) => (
+                  <CreativeGridCard key={c.id} {...propsDoCard(c)} layout="horizontal" />
+                ))}
+              </CreativeCardGrid>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="card" style={{ textAlign: "center", color: "var(--text-secondary)", marginTop: 12 }}>
+              {creatives.length === 0 ? "Nenhum criativo cadastrado ainda" : "Nenhum criativo encontrado para os filtros selecionados"}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  // Desktop: sidebar de filtros (Status/Plataforma/Verba) ao lado do
+  // conteudo -- so no modo Grade/Foco (fora daqui, no Kanban, continua o
+  // layout antigo de pills horizontais + statusGrid, ver mais abaixo).
+  const grid = campanhaId ? (
+    <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+      {creatives && (
+        // paddingTop alinha o titulo "Status" com a linha "N criativos" +
+        // toggle Grade/Foco do gridConteudo ao lado -- sem isso a sidebar
+        // comecava mais alto (fonte menor, sem o toggle por cima), parecendo
+        // desalinhada/desconectada do conteudo.
+        <div style={{ paddingTop: 6 }}>
+          <MatrixSidebarFilters
+            statusCounts={statusCounts}
+            filtrosStatus={filters.status}
+            onToggleStatus={(status) => setStatus(filters.status.includes(status) ? filters.status.filter((s) => s !== status) : [...filters.status, status])}
+            plataformasCounts={abasPlataforma}
+            plataformaAtiva={plataformaAtiva}
+            onSelecionarPlataforma={selecionarAbaPlataforma}
+            totalCreativos={creatives?.length || 0}
+            verbaPlanejada={verbaPlanejada}
+            verbaRealizada={verbaRealizada}
           />
-        ))}
-      </CreativeCardGrid>
-      {filtered.length === 0 && (
-        <div className="card" style={{ textAlign: "center", color: "var(--text-secondary)", marginTop: 12 }}>
-          {creatives.length === 0 ? "Nenhum criativo cadastrado ainda" : "Nenhum criativo encontrado para os filtros selecionados"}
         </div>
       )}
-    </>
-  );
+      {gridConteudo}
+    </div>
+  ) : gridConteudo;
 
   // Kanban usa os mesmos status permitidos ao papel do usuario (veiculo tem
   // um subconjunto) -- arrastar para uma coluna fora desse conjunto nunca
@@ -776,8 +1022,12 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
       {syncResult && <div style={{ textAlign: "right" }}>{syncFeedback}</div>}
       {urgenciaBanner}
       {selecaoBarra}
-      {statusGrid}
-      {visualizacao === "kanban" ? kanbanBoard : grid}
+      {visualizacao === "kanban" ? (
+        <>
+          {statusGrid}
+          {kanbanBoard}
+        </>
+      ) : grid}
       {modals}
     </div>
   );
