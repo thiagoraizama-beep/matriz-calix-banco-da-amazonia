@@ -481,6 +481,21 @@ export async function getPerformancePorCampanha(user, campanhaId) {
     creatives.map(async (creative) => {
       const linhas = linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma);
       // DEBUG TEMPORARIO -- remover apos diagnosticar o card PMax zerado em producao.
+      if (!creative.ad_name && creative.conjunto) {
+        const linhasComAdGroup = linhasPlanilha.filter((l) => l.adGroup);
+        console.log("[DEBUG fallbackAdGroup]", JSON.stringify({
+          creativeId: creative.id,
+          conjuntoCadastrado: creative.conjunto,
+          conjuntoCadastradoCodes: [...creative.conjunto].map((c) => c.charCodeAt(0)),
+          totalLinhasComAdGroup: linhasComAdGroup.length,
+          amostraAdGroups: linhasComAdGroup.slice(0, 5).map((l) => ({
+            adGroup: l.adGroup,
+            adGroupCodes: [...(l.adGroup || "")].map((c) => c.charCodeAt(0)),
+            plataforma: l.plataforma,
+            campanha: l.campanha,
+          })),
+        }));
+      }
       console.log("[DEBUG linhasCasadas]", JSON.stringify({
         creativeId: creative.id, nome: creative.nome, adName: creative.ad_name, conjunto: creative.conjunto,
         plataforma: creative.plataforma, campanha: creative.campanha, campaignName: creative.campaign_name,
