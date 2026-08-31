@@ -37,10 +37,10 @@ const GRUPOS_MAPEAMENTO = [
   {
     titulo: "Identificação do anúncio",
     campos: [
-      { key: "adName", label: "Ad Name", dica: "Nome individual do anúncio, quando a plataforma fornece (ex: Meta, TikTok)." },
-      { key: "adGroup", label: "Ad Group", dica: "Fallback quando não há Ad Name -- ex: Google Performance Max/Search, que não tem nome de anúncio individual." },
-      { key: "campanha", label: "Campanha", dica: "Nome curto da campanha no sistema, ex: \"Capital de Giro - Etapa 2\"." },
       { key: "campaignName", label: "Campaign Name", dica: "Nome usado no Google/Meta Ads, ex: \"2026_CAMPANHA_CONVERSAO_X\" -- diferente do nome curto da Campanha." },
+      { key: "adGroup", label: "Ad Group", dica: "Fallback quando não há Ad Name -- ex: Google Performance Max/Search, que não tem nome de anúncio individual." },
+      { key: "adName", label: "Ad Name", dica: "Nome individual do anúncio, quando a plataforma fornece (ex: Meta, TikTok)." },
+      { key: "campanha", label: "Campanha", dica: "Nome curto da campanha no sistema, ex: \"Capital de Giro - Etapa 2\"." },
       { key: "vendedor", label: "Veículo (vendor)" },
     ],
   },
