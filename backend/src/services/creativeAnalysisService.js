@@ -480,29 +480,6 @@ export async function getPerformancePorCampanha(user, campanhaId) {
   await Promise.all(
     creatives.map(async (creative) => {
       const linhas = linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma);
-      // DEBUG TEMPORARIO -- remover apos diagnosticar o card PMax zerado em producao.
-      if (!creative.ad_name && creative.conjunto) {
-        const linhasDoAdGroup = linhasPlanilha.filter((l) => l.adGroup === creative.conjunto);
-        console.log("[DEBUG fallbackAdGroup2]", JSON.stringify({
-          creativeId: creative.id,
-          periodoInicio: creative.periodo_inicio,
-          periodoFim: creative.periodo_fim,
-          ehPerformance: creative.eh_performance,
-          tiposCompra: creative.tipos_compra,
-          veiculo: creative.veiculo,
-          linhasComEsseAdGroupExato: linhasDoAdGroup.length,
-          detalheLinhas: linhasDoAdGroup.map((l) => ({
-            data: l.data, plataforma: l.plataforma, campanha: l.campanha,
-            vendedor: l.vendedor, tipoCompra: l.tipoCompra, investimento: l.investimento,
-          })),
-        }));
-      }
-      console.log("[DEBUG linhasCasadas]", JSON.stringify({
-        creativeId: creative.id, nome: creative.nome, adName: creative.ad_name, conjunto: creative.conjunto,
-        plataforma: creative.plataforma, campanha: creative.campanha, campaignName: creative.campaign_name,
-        veiculo: creative.veiculo, tiposCompra: creative.tipos_compra, ehPerformance: creative.eh_performance,
-        totalLinhasPlanilha: linhasPlanilha.length, linhasCasadasCount: linhas.length,
-      }));
       const investimento = linhas.reduce((acc, l) => acc + l.investimento, 0);
       const impressoes = linhas.reduce((acc, l) => acc + l.impressoes, 0);
       const cliques = linhas.reduce((acc, l) => acc + l.cliques, 0);

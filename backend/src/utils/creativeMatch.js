@@ -70,13 +70,14 @@ export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma =
     });
   }
 
-  // A coluna "Campaign Name" que o Google exporta e o mesmo texto usado no
-  // campo Campaign Name do cadastro (ex: "2026_CAMPANHA_CONVERSAO_X"),
-  // diferente do nome curto da Campanha no sistema (ex: "Capital de Giro -
-  // Etapa 2") -- compara com campaign_name primeiro, so cai pro nome da
-  // Campanha se o criativo nao tiver campaign_name preenchido. Usado tanto
-  // pelo fallback de Ad Group quanto pelo de Campaign Name abaixo.
-  const campanhaAlvo = creative.campaign_name || creative.campanha;
+  // A coluna "Campanha" da planilha pode estar mapeada pro nome curto do
+  // sistema (ex: "Capital de Giro - Etapa 2") OU pelo Campaign Name longo do
+  // Google (ex: "2026_CAMPANHA_CONVERSAO_X") -- depende de qual coluna real
+  // o usuario escolheu no mapeamento (Perfil > Integracoes de Planilha).
+  // Aceita bater com QUALQUER um dos dois, em vez de fixar uma prioridade --
+  // fixar campaign_name como preferencial (como antes) quebrava o match
+  // sempre que a planilha trazia o nome curto da campanha nessa coluna.
+  const candidatosCampanha = [creative.campanha, creative.campaign_name].filter(Boolean);
   const inicio = toISODate(creative.periodo_inicio);
   const fim = toISODate(creative.periodo_fim);
   function dentroDoPeriodo(linha) {
@@ -93,7 +94,7 @@ export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma =
   function passaFiltrosComuns(linha) {
     if (!plataformasValidas.includes(linha.plataforma)) return false;
     if (!dentroDoPeriodo(linha)) return false;
-    if (linha.campanha && linha.campanha !== campanhaAlvo) return false;
+    if (linha.campanha && !candidatosCampanha.includes(linha.campanha)) return false;
     if (creative.eh_performance) return true;
     if (linha.vendedor && linha.vendedor !== creative.veiculo) return false;
     if (!creative.tipos_compra?.includes(linha.tipoCompra)) return false;
@@ -104,23 +105,14 @@ export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma =
   if (adGroupAlvo) {
     const linhas = linhasPlanilha.filter((linha) => {
       if (normalizarAdName(linha.adGroup) !== adGroupAlvo) return false;
-      const passa = passaFiltrosComuns(linha);
-      console.log("[DEBUG passaFiltrosComuns]", JSON.stringify({
-        adGroup: linha.adGroup, passa,
-        plataformaLinha: linha.plataforma, plataformasValidas,
-        dentroPeriodo: dentroDoPeriodo(linha), dataLinha: linha.data, inicio, fim,
-        campanhaLinha: linha.campanha, campanhaAlvo,
-        vendedorLinha: linha.vendedor, veiculoCreative: creative.veiculo,
-        ehPerformance: creative.eh_performance,
-      }));
-      return passa;
+      return passaFiltrosComuns(linha);
     });
     if (linhas.length > 0) return linhas;
   }
 
-  if (!campanhaAlvo) return [];
+  if (candidatosCampanha.length === 0) return [];
   return linhasPlanilha.filter((linha) => {
-    if (linha.campanha !== campanhaAlvo) return false;
+    if (!candidatosCampanha.includes(linha.campanha)) return false;
     return passaFiltrosComuns(linha);
   });
 }
