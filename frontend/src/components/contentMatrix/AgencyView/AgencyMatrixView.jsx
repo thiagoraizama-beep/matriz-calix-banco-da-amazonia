@@ -618,34 +618,39 @@ export default function AgencyMatrixView({ campanhaId } = {}) {
   const focoAtivo = modoCards === "foco" && filteredOrdenado.find((c) => c.id === focoCreativeId);
 
   const viewToggle = campanhaId && filteredOrdenado.length > 0 && (
-    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-      <button
-        type="button"
-        onClick={() => setModoCards("grade")}
-        style={{
-          display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer",
-          background: modoCards === "grade" ? "var(--accent)" : "var(--bg)",
-          color: modoCards === "grade" ? "#fff" : "var(--text-secondary)",
-          fontWeight: 600, fontSize: 12,
-        }}
-      >
-        <GridIcon /> Grade
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          if (!focoCreativeId && filteredOrdenado[0]) setFocoCreativeId(filteredOrdenado[0].id);
-          setModoCards("foco");
-        }}
-        style={{
-          display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer",
-          background: modoCards === "foco" ? "var(--accent)" : "var(--bg)",
-          color: modoCards === "foco" ? "#fff" : "var(--text-secondary)",
-          fontWeight: 600, fontSize: 12,
-        }}
-      >
-        <FocusIcon /> Foco
-      </button>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+        Mudança de visualização
+      </span>
+      <div style={{ display: "flex", background: "var(--bg)", borderRadius: 999, overflow: "hidden" }}>
+        <button
+          type="button"
+          onClick={() => setModoCards("grade")}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "none", cursor: "pointer",
+            background: modoCards === "grade" ? "var(--accent-soft)" : "transparent",
+            color: modoCards === "grade" ? "var(--accent)" : "var(--text-secondary)",
+            fontWeight: 600, fontSize: 12.5,
+          }}
+        >
+          <GridIcon /> Grade
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!focoCreativeId && filteredOrdenado[0]) setFocoCreativeId(filteredOrdenado[0].id);
+            setModoCards("foco");
+          }}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "none", cursor: "pointer",
+            background: modoCards === "foco" ? "var(--accent-soft)" : "transparent",
+            color: modoCards === "foco" ? "var(--accent)" : "var(--text-secondary)",
+            fontWeight: 600, fontSize: 12.5,
+          }}
+        >
+          <FocusIcon /> Foco
+        </button>
+      </div>
     </div>
   );
 
