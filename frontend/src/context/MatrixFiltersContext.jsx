@@ -1,5 +1,4 @@
 import { createContext, useContext, useState } from "react";
-import { useVisualizacao } from "../hooks/useVisualizacao.js";
 
 // Estado dos filtros da Matriz de Conteudo (busca/status/veiculo/campanha/plataforma),
 // exposto aqui para que a TopNav possa renderizar os controles (busca + botao Filtro)
@@ -16,9 +15,13 @@ export function MatrixFiltersProvider({ children }) {
   const [plataforma, setPlataforma] = useState([]);
   const [modeloCompra, setModeloCompra] = useState([]);
   const [matrixOptions, setMatrixOptions] = useState({ statuses: [], veiculos: [], campanhas: [], plataformas: [], modelosCompra: [] });
-  // Preferencia Grade/Kanban -- exposta aqui (em vez de estado local na view) para
-  // que a TopNav renderize o toggle dentro do menu do usuario, igual ao Tema.
-  const [visualizacao, setVisualizacao] = useVisualizacao("matriz-visualizacao");
+  // Kanban foi removido da Matriz de Conteudo (so Grade/Foco agora, ver
+  // AgencyMatrixView.jsx) -- "visualizacao" fica fixa em "grade", sem toggle
+  // nem persistencia em localStorage (nao ha mais outra opcao pra lembrar).
+  // setVisualizacao continua exposto por compatibilidade com quem consome o
+  // contexto, mas nao tem efeito nenhum.
+  const visualizacao = "grade";
+  function setVisualizacao() {}
   // true quando um overlay de pagina inteira estiver aberto (ex: HistoricoDrawer,
   // que a TopNav renderiza fora da view) -- usado pelo ActionsRail pra se
   // esconder em vez de ficar visualmente sobreposto/competindo com o drawer.

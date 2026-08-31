@@ -165,11 +165,10 @@ export default function TopNav({ activePage, onNavigate, user, showMatrixFilters
   const matrixLabel = user?.papel === "cliente" ? "Relatório de Criativos" : PAGES.MATRIZ_CONTEUDO;
   const [totalAImplementar, setTotalAImplementar] = useState(0);
   // Toggle Grade/Kanban no menu do usuario -- so aparece quando a tela ativa
-  // tem uma visualizacao alternativa (Matriz dentro de campanha, ou Home de
-  // Campanhas), usando o mesmo criterio das props que ja controlam os filtros.
-  const visualizacaoAtual = showMatrixFilters && matrixFilters
-    ? matrixFilters
-    : showCampanhasFilters && campanhasFilters
+  // tem uma visualizacao alternativa. A Matriz de Conteudo nao oferece mais
+  // Kanban (removido a pedido do usuario -- so a Grade/Foco novos ficam),
+  // entao esse toggle so aparece na Home de Campanhas agora.
+  const visualizacaoAtual = showCampanhasFilters && campanhasFilters
     ? campanhasFilters
     : null;
 
