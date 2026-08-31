@@ -104,7 +104,16 @@ export function linhasCasadas(linhasPlanilha, creative, subcanaisPorPlataforma =
   if (adGroupAlvo) {
     const linhas = linhasPlanilha.filter((linha) => {
       if (normalizarAdName(linha.adGroup) !== adGroupAlvo) return false;
-      return passaFiltrosComuns(linha);
+      const passa = passaFiltrosComuns(linha);
+      console.log("[DEBUG passaFiltrosComuns]", JSON.stringify({
+        adGroup: linha.adGroup, passa,
+        plataformaLinha: linha.plataforma, plataformasValidas,
+        dentroPeriodo: dentroDoPeriodo(linha), dataLinha: linha.data, inicio, fim,
+        campanhaLinha: linha.campanha, campanhaAlvo,
+        vendedorLinha: linha.vendedor, veiculoCreative: creative.veiculo,
+        ehPerformance: creative.eh_performance,
+      }));
+      return passa;
     });
     if (linhas.length > 0) return linhas;
   }
